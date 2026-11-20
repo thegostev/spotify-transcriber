@@ -1,10 +1,6 @@
 from datetime import date
 from pathlib import Path
 
-import pytest
-
-pytestmark = pytest.mark.xfail(strict=True, reason="LAG-1046")
-
 AUDIO_URL = "https://traffic.megaphone.fm/SCIM7125421200.mp3?updated=1747806938"
 
 
