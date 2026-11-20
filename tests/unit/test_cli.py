@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
+import pytest
+
 from podscribe.analyzer import AnalyzerResult
 from podscribe.config import Config
 from podscribe.models import EpisodeRef, Segment, Transcript
@@ -124,6 +126,8 @@ def test_add_episode_dry_run_resolves_without_download_or_write(tmp_path):
     assert outcome.episode_note is not None
     assert outcome.episode_note.name == "26-10-15 MCP, CLIs and agents.md"
     assert not outcome.episode_note.exists()
+    assert outcome.analysis_note is not None
+    assert not outcome.analysis_note.exists()
     assert client.downloads == []
 
 
@@ -149,6 +153,44 @@ def test_add_episode_writes_episode_and_analysis_notes(tmp_path):
     assert "[00:00:00] Hello and welcome." in episode
     assert 'episode_note: "[[26-10-15 MCP, CLIs and agents]]"' in analysis
     assert "## TL;DR" in analysis
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1046")
+def test_add_episode_analysis_write_failure_leaves_no_episode_note(tmp_path, monkeypatch):
+    import os
+
+    from podscribe.cli import add_episode
+
+    real_replace = os.replace
+
+    def fail_analysis_write(source, destination):
+        if str(destination).endswith(" - Analysis.md"):
+            raise OSError("disk full")
+        real_replace(source, destination)
+
+    with monkeypatch.context() as patched:
+        patched.setattr(os, "replace", fail_analysis_write)
+        failed = add_episode(
+            "https://open.spotify.com/episode/abc123",
+            make_config(tmp_path),
+            client=FakeClient(),
+            analyzer=FakeAnalyzer(),
+        )
+
+    assert failed.status == "failed"
+    assert failed.reason == "write"
+    assert list((tmp_path / "out").glob("*.md")) == []
+
+    retried = add_episode(
+        "https://open.spotify.com/episode/abc123",
+        make_config(tmp_path),
+        client=FakeClient(),
+        analyzer=FakeAnalyzer(),
+    )
+
+    assert retried.status == "done"
+    assert retried.episode_note.exists()
+    assert retried.analysis_note.exists()
 
 
 def test_add_episode_without_analysis_writes_one_note(tmp_path):
