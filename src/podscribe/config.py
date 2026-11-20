@@ -61,6 +61,8 @@ class Config:
 def _validate_analyzer(analyzer: dict[str, Any], source: Path) -> None:
     """Check the backend name and its settings, so failures happen at startup."""
     backend = analyzer["backend"]
+    if not isinstance(backend, str):
+        raise ConfigError(f"config file {source} needs a string analyzer.backend")
     if backend not in ANALYZER_BACKENDS:
         expected = ", ".join(ANALYZER_BACKENDS)
         raise ConfigError(f"config file {source} has unknown analyzer.backend {backend!r}; expected {expected}")
@@ -70,6 +72,9 @@ def _validate_analyzer(analyzer: dict[str, Any], source: Path) -> None:
     for key in ANALYZER_BACKENDS[backend]:
         if key not in options:
             raise ConfigError(f"config file {source} is missing key analyzer.{backend}.{key}")
+    timeout = options.get("timeout_seconds")
+    if timeout is not None and (isinstance(timeout, bool) or not isinstance(timeout, (int, float))):
+        raise ConfigError(f"config file {source} needs a number analyzer.{backend}.timeout_seconds")
     if backend == "command":
         argv = options["argv"]
         if not isinstance(argv, list) or not argv:

@@ -170,7 +170,6 @@ def test_load_config_rejects_a_missing_backend_setting(tmp_path):
         load_config(write_config(tmp_path, text))
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1058")
 def test_load_config_rejects_a_non_string_backend(tmp_path):
     from podscribe.config import ConfigError, load_config
 
@@ -180,7 +179,6 @@ def test_load_config_rejects_a_non_string_backend(tmp_path):
         load_config(write_config(tmp_path, text))
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1058")
 def test_load_config_rejects_a_non_numeric_timeout(tmp_path):
     from podscribe.config import ConfigError, load_config
 
