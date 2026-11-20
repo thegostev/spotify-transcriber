@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
+import pytest
+
 from podscribe.analyzer import AnalyzerResult
 from podscribe.config import Config
 from podscribe.models import EpisodeRef, Segment, Transcript
@@ -190,3 +192,34 @@ def test_add_episode_reports_an_unmatched_episode(tmp_path):
 
     assert outcome.status == "unmatched"
     assert outcome.episode_note is None
+
+
+def _write_config(tmp_path: Path) -> Path:
+    """Write a config.yaml that load_config accepts, with temp paths."""
+    import yaml
+
+    config = make_config(tmp_path)
+    data = {
+        "paths": config.paths,
+        "intake": config.intake,
+        "analyzer": config.analyzer,
+        "notifications": config.notifications,
+        "remote": config.remote,
+    }
+    path = tmp_path / "config.yaml"
+    path.write_text(yaml.safe_dump(data), encoding="utf-8")
+    return path
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1046")
+def test_main_dry_run_prints_the_target_path(tmp_path, capsys):
+    from podscribe.cli import main
+
+    exit_code = main(
+        ["add", "https://open.spotify.com/episode/abc123", "--dry-run", "--config", str(_write_config(tmp_path))],
+        client=FakeClient(),
+        analyzer=FakeAnalyzer(),
+    )
+
+    assert exit_code == 0
+    assert "26-10-15 MCP, CLIs and agents.md" in capsys.readouterr().out
