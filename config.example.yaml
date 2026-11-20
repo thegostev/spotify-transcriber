@@ -1,0 +1,63 @@
+# podscribe configuration template.
+# Copy to config.yaml (gitignored) and edit. Never put secret values here:
+# secrets are macOS Keychain references (service + account).
+# Values marked ASSUMED are guesses - confirm on first run.
+
+paths:
+  output_dir: "~/Documents/Obsidian/Personlig/raw/8 - Læring/1 - Podkaster"
+  failure_notes_dir: "~/Documents/Obsidian/Utvikling/1 - Code/SpotifyTranscriber"
+  data_dir: "~/.podscribe"                 # queue database, downloaded audio, chunks
+  log_file: "~/.podscribe/podscribe.log"
+
+intake:
+  itunes_search_url: "https://itunes.apple.com/search"
+  match_window_days: 2                     # publish-date tolerance for a feed match
+  user_agent: "podscribe/0.0 (personal podcast notes)"
+
+speech:
+  language: en
+  chunk_seconds: null                      # set by spike LAG-1044
+  plan1:                                   # set by spike LAG-1044
+    engine: ollama
+    host: "http://localhost:11434"
+    model: "lfm3-audio"
+    timeout_seconds: 600
+  plan2:
+    engine: mlx-whisper
+    model: "mlx-community/whisper-large-v3-turbo"
+
+llm:                                       # Ollama Cloud, text passes only
+  host: "https://ollama.com"
+  model: "deepseek-v4.1-flash:cloud"
+  api_key:
+    keychain_service: "ollama-cloud"       # match your existing Keychain item
+    keychain_account: "api-key"
+  timeout_seconds: 300
+  retry_backoff_seconds: [30, 60, 120]
+  cleanup:
+    enabled: true
+    min_word_overlap: 0.85                 # below this, keep the raw transcript chunk
+    prompt: |
+      You clean up an automatic podcast transcript chunk.
+      Fix punctuation, capitalisation and paragraph breaks.
+      Fix the spelling of names using this list: {names}
+      Keep every [hh:mm:ss] timestamp exactly where it is.
+      Keep the speaker's words. Output only the cleaned chunk.
+  summary:
+    enabled: true
+    language: en
+    prompt: |
+      You write study notes from a podcast transcript.
+      Output Markdown with exactly these parts:
+      ## Summary - 5-8 sentences.
+      ## Key points - 5-12 bullets, each one idea in plain words.
+      TAGS: 3-8 lowercase tags, comma separated.
+
+notifications:
+  macos: true
+
+remote:                                    # used on the laptop by the shim
+  transport: rex                           # rex | ssh
+  rex_host: "mini"                         # label from `rex hosts`  - ASSUMED
+  rex_session: "podscribe"
+  ssh_target: "harald@mac-mini.local"      # host ASSUMED

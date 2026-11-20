@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Guardrails: commit size (20-80 production LOC) and a green test suite.
+set -euo pipefail
+uv run --quiet python scripts/check_commit_size.py
+uv run --quiet pytest -q -m "not slow"

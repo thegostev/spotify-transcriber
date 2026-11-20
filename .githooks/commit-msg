@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Guardrail: conventional commit type + Linear issue id (LAG-###).
+set -euo pipefail
+uv run --quiet python scripts/check_commit_msg.py "$1"
