@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-import pytest
-
 from podscribe.analyzer import AnalyzerResult
 from podscribe.models import EpisodeRef, Segment, Transcript
 
@@ -84,7 +82,6 @@ def store_for(config):
     return open_store(config.paths["data_dir"])
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1050")
 def test_append_log_writes_a_timestamped_line(tmp_path):
     from podscribe.worker import append_log
 
@@ -94,7 +91,6 @@ def test_append_log_writes_a_timestamped_line(tmp_path):
     assert path.read_text(encoding="utf-8") == "[2026-11-20 12:01:02] hello\n"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1050")
 def test_run_jobs_writes_a_note_and_marks_the_job_done(config_factory):
     from podscribe.queue import enqueue, list_jobs
     from podscribe.worker import run_jobs
@@ -121,7 +117,6 @@ def test_run_jobs_writes_a_note_and_marks_the_job_done(config_factory):
     assert lines[-1] == f"done {URL} -> {job.note_path}"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1050")
 def test_run_jobs_marks_an_existing_note_done(config_factory):
     from podscribe.queue import enqueue, list_jobs
     from podscribe.worker import run_jobs
