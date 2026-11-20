@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-import pytest
-
 from podscribe.analyzer import AnalyzerResult
 from podscribe.models import EpisodeRef, Segment, Transcript
 
@@ -77,7 +75,6 @@ class FakeAnalyzer:
         return AnalyzerResult(transcript=transcript, analysis=None, analyzer="command")
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1050")
 def test_main_run_once_drains_the_queue_and_logs(config_factory, monkeypatch):
     import podscribe.cli as cli
     from podscribe.queue import enqueue, list_jobs, open_store
@@ -97,7 +94,6 @@ def test_main_run_once_drains_the_queue_and_logs(config_factory, monkeypatch):
     assert f"] done {URL} -> {job.note_path}\n" in log
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1050")
 def test_main_install_service_dry_run_prints_the_plist(tmp_path, config_factory, capsys, monkeypatch):
     import podscribe.cli as cli
 
@@ -117,7 +113,6 @@ def test_main_install_service_dry_run_prints_the_plist(tmp_path, config_factory,
     assert not target.exists()
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1050")
 def test_main_install_service_writes_the_plist_and_prints_the_load_command(
     tmp_path, config_factory, capsys, monkeypatch
 ):
@@ -134,4 +129,4 @@ def test_main_install_service_writes_the_plist_and_prints_the_load_command(
     assert exit_code == 0
     assert target.exists()
     assert f"wrote: {target}" in out
-    assert f"launchctl bootstrap gui/" in out and str(target) in out
+    assert "launchctl bootstrap gui/" in out and str(target) in out

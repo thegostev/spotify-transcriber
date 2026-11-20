@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime
@@ -253,6 +254,12 @@ def build_parser() -> argparse.ArgumentParser:
     add.add_argument("--config", default="config.yaml", help="path to config.yaml (default: ./config.yaml)")
     status = commands.add_parser("status", help="list queued, running and finished jobs")
     status.add_argument("--config", default="config.yaml", help="path to config.yaml (default: ./config.yaml)")
+    run = commands.add_parser("run", help="process queued links, one at a time")
+    run.add_argument("--once", action="store_true", help="drain the queued jobs and exit")
+    run.add_argument("--config", default="config.yaml", help="path to config.yaml (default: ./config.yaml)")
+    install = commands.add_parser("install-service", help="write the worker LaunchAgent plist")
+    install.add_argument("--dry-run", action="store_true", help="print the plist without writing")
+    install.add_argument("--config", default="config.yaml", help="path to config.yaml (default: ./config.yaml)")
     return parser
 
 
@@ -281,6 +288,10 @@ def main(
         return _add_command(args, config)
     if args.command == "status":
         return _status_command(config)
+    if args.command == "run":
+        return _run_command(args, config, client=client, analyzer=analyzer)
+    if args.command == "install-service":
+        return _install_service_command(args, config)
     return 1
 
 
@@ -358,6 +369,44 @@ def _status_command(config: Config) -> int:
     """Print the queue, newest first, flagging a running job while locked."""
     for line in format_status(list_jobs(open_store(config.paths["data_dir"])), lock_held=superwhisper_lock_held):
         print(line)
+    return 0
+
+
+def _run_command(
+    args: argparse.Namespace,
+    config: Config,
+    *,
+    client: HttpClientLike | None,
+    analyzer: Analyzer | None,
+) -> int:
+    """Drain the queue, logging every job to the configured log file."""
+    from podscribe.worker import append_log, run_jobs
+
+    http, backend = _dependencies(config, client, analyzer)
+    log_file = Path(config.paths["log_file"])
+    run_jobs(
+        config,
+        store=open_store(config.paths["data_dir"]),
+        client=http,
+        analyzer=backend,
+        log=lambda line: append_log(log_file, line),
+        once=args.once,
+    )
+    return 0
+
+
+def _install_service_command(args: argparse.Namespace, config: Config) -> int:
+    """Write or preview the worker plist and print the load command."""
+    from podscribe.service import install_service, launch_agent_path, render_plist
+
+    target = launch_agent_path()
+    log_file = config.paths["log_file"]
+    if args.dry_run:
+        print(render_plist(config, config_path=args.config, log_file=log_file), end="")
+        print(f"would write: {target}")
+    else:
+        print(f"wrote: {install_service(config, config_path=args.config, log_file=log_file)}")
+    print(f"load with: launchctl bootstrap gui/{os.getuid()} {target}")
     return 0
 
 
