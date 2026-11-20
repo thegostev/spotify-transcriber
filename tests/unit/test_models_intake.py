@@ -3,8 +3,6 @@ from datetime import date
 
 import pytest
 
-pytestmark = pytest.mark.xfail(strict=True, reason="LAG-1046")
-
 
 def test_episode_ref_holds_link_show_and_title():
     from podscribe.models import EpisodeRef
