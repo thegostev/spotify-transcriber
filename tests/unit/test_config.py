@@ -14,6 +14,17 @@ intake:
   itunes_search_url: "https://itunes.apple.com/search"
   match_window_days: 2
   user_agent: "podscribe/0.0"
+analyzer:
+  backend: superwhisper
+  superwhisper:
+    wf_path: "~/code/superwhisper-obsidian-wf"
+    mode_key: "podcast"
+    timeout_seconds: 3600
+  command:
+    argv: ["my-analyzer", "--audio", "{audio}"]
+    timeout_seconds: 3600
+  module:
+    path: "package.module:Class"
 speech:
   language: en
   chunk_seconds: null
@@ -49,6 +60,17 @@ def write_config(tmp_path: Path, text: str = BASE_CONFIG) -> Path:
     path = tmp_path / "config.yaml"
     path.write_text(text, encoding="utf-8")
     return path
+
+
+def without_sections(*names: str) -> str:
+    """Return BASE_CONFIG with the named top-level sections removed."""
+    kept, skipping = [], False
+    for line in BASE_CONFIG.splitlines(keepends=True):
+        if line and not line[0].isspace() and line.rstrip().endswith(":"):
+            skipping = line.split(":")[0] in names
+        if not skipping:
+            kept.append(line)
+    return "".join(kept)
 
 
 def test_load_config_exposes_every_section(tmp_path):
@@ -102,3 +124,58 @@ def test_load_config_rejects_non_mapping(tmp_path):
 
     with pytest.raises(ConfigError, match="mapping"):
         load_config(path)
+
+
+def test_load_config_exposes_the_analyzer_section(tmp_path):
+    from podscribe.config import load_config
+
+    config = load_config(write_config(tmp_path))
+
+    assert config.analyzer["backend"] == "superwhisper"
+    assert config.analyzer["superwhisper"]["mode_key"] == "podcast"
+    assert config.analyzer["command"]["argv"] == ["my-analyzer", "--audio", "{audio}"]
+
+
+def test_load_config_allows_missing_speech_and_llm(tmp_path):
+    from podscribe.config import load_config
+
+    config = load_config(write_config(tmp_path, without_sections("speech", "llm")))
+
+    assert config.speech == {}
+    assert config.llm == {}
+
+
+def test_load_config_requires_the_analyzer_section(tmp_path):
+    from podscribe.config import ConfigError, load_config
+
+    with pytest.raises(ConfigError, match="analyzer"):
+        load_config(write_config(tmp_path, without_sections("analyzer")))
+
+
+def test_load_config_rejects_an_unknown_analyzer_backend(tmp_path):
+    from podscribe.config import ConfigError, load_config
+
+    text = BASE_CONFIG.replace("backend: superwhisper", "backend: whisper")
+
+    with pytest.raises(ConfigError, match="analyzer.backend"):
+        load_config(write_config(tmp_path, text))
+
+
+def test_load_config_rejects_a_missing_backend_setting(tmp_path):
+    from podscribe.config import ConfigError, load_config
+
+    text = BASE_CONFIG.replace('    mode_key: "podcast"\n', "")
+
+    with pytest.raises(ConfigError, match="analyzer.superwhisper.mode_key"):
+        load_config(write_config(tmp_path, text))
+
+
+def test_load_config_rejects_a_non_list_command_argv(tmp_path):
+    from podscribe.config import ConfigError, load_config
+
+    text = BASE_CONFIG.replace("backend: superwhisper", "backend: command").replace(
+        'argv: ["my-analyzer", "--audio", "{audio}"]', 'argv: "my-analyzer"'
+    )
+
+    with pytest.raises(ConfigError, match="analyzer.command.argv"):
+        load_config(write_config(tmp_path, text))
