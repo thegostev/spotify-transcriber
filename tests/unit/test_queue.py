@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-import pytest
-
 URL = "https://open.spotify.com/episode/abc123"
 
 
@@ -45,7 +43,6 @@ def test_list_jobs_returns_the_newest_first(config_factory):
     assert [job.episode_url for job in jobs] == [URL + "-two", URL]
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1050")
 def test_enqueue_skips_a_link_that_is_already_done(config_factory):
     from podscribe.queue import claim_next, enqueue, finish, open_store
 
@@ -60,7 +57,6 @@ def test_enqueue_skips_a_link_that_is_already_done(config_factory):
     assert result.job.note_path == "/notes/episode.md"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1050")
 def test_enqueue_reports_a_queued_or_running_link(config_factory):
     from podscribe.queue import claim_next, enqueue, open_store
 
@@ -72,7 +68,6 @@ def test_enqueue_reports_a_queued_or_running_link(config_factory):
     assert enqueue(store, URL).status == "already_running"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1050")
 def test_enqueue_retries_a_failed_link(config_factory):
     from podscribe.queue import claim_next, enqueue, finish, open_store
 

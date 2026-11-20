@@ -14,6 +14,8 @@ DONE = "done"
 UNMATCHED = "unmatched"
 FAILED = "failed"
 
+_DUPLICATE_STATUS = {DONE: "already_done", QUEUED: "already_queued", RUNNING: "already_running"}
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -79,6 +81,11 @@ def _timestamp(now: datetime | None) -> str:
     return (now or datetime.now()).isoformat(timespec="seconds")
 
 
+def _duplicate_status(state: str) -> str:
+    """Return the enqueue status for a link that is already in the queue."""
+    return _DUPLICATE_STATUS.get(state, "retry")
+
+
 def _job(row: sqlite3.Row) -> Job:
     """Turn one jobs row into a Job."""
     return Job(**dict(row))
@@ -93,16 +100,34 @@ def enqueue(store: Store, url: str, *, now: datetime | None = None) -> EnqueueRe
         now: Creation time; defaults to the current time.
 
     Returns:
-        Status ``new`` and the queued job.
+        ``new`` or ``retry`` with a queued job, or ``already_done``,
+        ``already_queued`` or ``already_running`` with the existing job.
     """
     connection = _connect(store)
     try:
-        cursor = connection.execute(
-            "INSERT INTO jobs (episode_url, state, created_at) VALUES (?, ?, ?)",
-            (url, QUEUED, _timestamp(now)),
-        )
-        row = connection.execute("SELECT * FROM jobs WHERE id = ?", (cursor.lastrowid,)).fetchone()
-        return EnqueueResult("new", _job(row))
+        connection.execute("BEGIN IMMEDIATE")
+        row = connection.execute("SELECT * FROM jobs WHERE episode_url = ?", (url,)).fetchone()
+        if row is None:
+            cursor = connection.execute(
+                "INSERT INTO jobs (episode_url, state, created_at) VALUES (?, ?, ?)",
+                (url, QUEUED, _timestamp(now)),
+            )
+            row = connection.execute("SELECT * FROM jobs WHERE id = ?", (cursor.lastrowid,)).fetchone()
+            status = "new"
+        else:
+            current = _job(row)
+            status = _duplicate_status(current.state)
+            if status == "retry":
+                connection.execute(
+                    "UPDATE jobs SET state = ?, reason = NULL, started_at = NULL, finished_at = NULL WHERE id = ?",
+                    (QUEUED, current.id),
+                )
+                row = connection.execute("SELECT * FROM jobs WHERE id = ?", (current.id,)).fetchone()
+        connection.execute("COMMIT")
+        return EnqueueResult(status, _job(row))
+    except BaseException:
+        connection.execute("ROLLBACK")
+        raise
     finally:
         connection.close()
 
