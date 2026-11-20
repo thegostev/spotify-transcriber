@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 from datetime import date
+from itertools import count
 from pathlib import Path
 
 from podscribe.models import EpisodeNote, EpisodeRef
@@ -53,11 +54,13 @@ def _frontmatter_value(path: Path, key: str) -> str | None:
 def note_filename(ref: EpisodeRef, show: str, *, output_dir: Path) -> str:
     """Return the file name for an episode note, avoiding silent overwrites.
 
+    The date-and-title name wins; when another episode holds it, the show
+    name is appended, and when that is taken too the name is numbered.
     A file for the same Spotify URL means the episode is already done.
 
     Args:
         ref: The episode link and its metadata.
-        show: Show name, used only in the clash name.
+        show: Show name, used only in the clash names.
         output_dir: Folder that holds episode notes.
 
     Returns:
@@ -74,11 +77,14 @@ def note_filename(ref: EpisodeRef, show: str, *, output_dir: Path) -> str:
         return base
     if _frontmatter_value(target, "spotify_url") == ref.spotify_url:
         raise NoteExistsError(target)
-    alternate = f"{prefix} {_safe_name(ref.episode_title)} - {_safe_name(show)}.md"
-    alternate_path = directory / alternate
-    if alternate_path.exists() and _frontmatter_value(alternate_path, "spotify_url") == ref.spotify_url:
-        raise NoteExistsError(alternate_path)
-    return alternate
+    stem = f"{prefix} {_safe_name(ref.episode_title)} - {_safe_name(show)}"
+    for number in count(1):
+        name = stem if number == 1 else f"{stem} {number}"
+        path = directory / f"{name}.md"
+        if not path.exists():
+            return path.name
+        if _frontmatter_value(path, "spotify_url") == ref.spotify_url:
+            raise NoteExistsError(path)
 
 
 def _yaml_string(value: str) -> str:

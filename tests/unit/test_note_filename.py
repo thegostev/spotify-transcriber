@@ -79,7 +79,6 @@ def test_note_filename_sanitises_show_in_the_clash_name(tmp_path):
     assert note_filename(ref(), "The: Show", output_dir=tmp_path) == "26-11-18 An Episode - The Show.md"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1052")
 def test_note_filename_numbers_when_the_show_name_is_also_taken(tmp_path):
     from podscribe.note import note_filename
 
@@ -89,7 +88,6 @@ def test_note_filename_numbers_when_the_show_name_is_also_taken(tmp_path):
     assert note_filename(ref(), "The Show", output_dir=tmp_path) == "26-11-18 An Episode - The Show 2.md"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1052")
 def test_note_filename_signals_already_done_for_a_numbered_name(tmp_path):
     from podscribe.note import NoteExistsError, note_filename
 
