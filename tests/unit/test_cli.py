@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-import pytest
-
 from podscribe.analyzer import AnalyzerResult
 from podscribe.config import Config
 from podscribe.models import EpisodeRef, Segment, Transcript
@@ -311,7 +309,6 @@ def test_add_episode_without_a_feed_writes_an_unmatched_failure_note(tmp_path):
     assert outcome.episode_note is None
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1051")
 def test_add_episode_download_error_writes_a_failure_note(tmp_path):
     from podscribe.cli import add_episode
 
@@ -329,7 +326,6 @@ def test_add_episode_download_error_writes_a_failure_note(tmp_path):
     assert list((tmp_path / "out").glob("*.md")) == []
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1051")
 def test_add_episode_analyzer_error_writes_a_failure_note(tmp_path):
     from podscribe.cli import add_episode
 
@@ -346,7 +342,6 @@ def test_add_episode_analyzer_error_writes_a_failure_note(tmp_path):
     assert "analyzer" in outcome.failure_note.read_text(encoding="utf-8")
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1051")
 def test_add_episode_write_error_writes_a_failure_note(tmp_path):
     from podscribe.cli import add_episode
 

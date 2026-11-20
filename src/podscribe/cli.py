@@ -143,8 +143,32 @@ def add_episode(
     analysis_path = output_dir / names.analysis
     if dry_run:
         return AddOutcome("planned", ref, feed_url=feed_url, episode_note=episode_path, analysis_note=analysis_path)
-    audio = download_audio(item, Path(config.paths["data_dir"]) / "audio", client)
-    result = analyzer.analyze(audio, ref)
+    try:
+        audio = download_audio(item, Path(config.paths["data_dir"]) / "audio", client)
+    except OSError as exc:
+        log_line(f"download failed for {ref.episode_title}: {exc}")
+        return _record_failure(
+            "failed",
+            "download",
+            ref=ref,
+            feed_url=feed_url,
+            config=config,
+            occurred_at=now or datetime.now(),
+            dry_run=dry_run,
+        )
+    try:
+        result = analyzer.analyze(audio, ref)
+    except Exception as exc:
+        log_line(f"analyzer failed for {ref.episode_title}: {exc}")
+        return _record_failure(
+            "failed",
+            "analyzer",
+            ref=ref,
+            feed_url=feed_url,
+            config=config,
+            occurred_at=now or datetime.now(),
+            dry_run=dry_run,
+        )
     has_analysis = bool(result.analysis)
     stamp = now or datetime.now()
     transcript = result.transcript
@@ -157,25 +181,40 @@ def add_episode(
         duration_seconds=item.duration_seconds,
         cleanup="skipped",
     )
-    output_dir.mkdir(parents=True, exist_ok=True)
     episode_text = render_episode_note(
         note, analysis_note=names.analysis if has_analysis else None, analyzer=result.analyzer
     )
-    episode_path.write_text(episode_text, encoding="utf-8")
-    if not result.analysis:
-        return AddOutcome("done", ref, feed_url=feed_url, episode_note=episode_path)
-    analysis_path.write_text(
-        render_analysis_note(
+    analysis_text = None
+    if result.analysis:
+        analysis_text = render_analysis_note(
             ref=ref,
             analyzer=result.analyzer,
             analysis=result.analysis,
             analyzed_at=stamp,
             episode_note=names.episode,
-        ),
-        encoding="utf-8",
-    )
+        )
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        episode_path.write_text(episode_text, encoding="utf-8")
+        if analysis_text is not None:
+            analysis_path.write_text(analysis_text, encoding="utf-8")
+    except OSError as exc:
+        log_line(f"could not write notes for {ref.episode_title}: {exc}")
+        return _record_failure(
+            "failed",
+            "write",
+            ref=ref,
+            feed_url=feed_url,
+            config=config,
+            occurred_at=now or datetime.now(),
+            dry_run=dry_run,
+        )
     return AddOutcome(
-        "done", ref, feed_url=feed_url, episode_note=episode_path, analysis_note=analysis_path
+        "done",
+        ref,
+        feed_url=feed_url,
+        episode_note=episode_path,
+        analysis_note=analysis_path if analysis_text is not None else None,
     )
 
 
