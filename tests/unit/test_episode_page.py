@@ -6,8 +6,6 @@ import pytest
 FIXTURES = Path(__file__).parents[1] / "fixtures"
 SPOTIFY_PAGE = FIXTURES / "spotify_episode.html"
 
-pytestmark = pytest.mark.xfail(strict=True, reason="LAG-1046")
-
 
 def test_parse_episode_page_reads_the_recorded_spotify_page():
     from podscribe.episode_page import parse_episode_page
