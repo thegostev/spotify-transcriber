@@ -91,3 +91,45 @@ def test_read_log_tail_returns_none_when_the_file_is_missing_or_empty(tmp_path):
     empty = tmp_path / "empty.log"
     empty.write_text("", encoding="utf-8")
     assert read_log_tail(empty) == ""
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1051")
+def test_write_failure_note_creates_the_private_directory(tmp_path):
+    from podscribe.failure import failure_note_name, write_failure_note
+
+    directory = tmp_path / "private" / "failures"
+    log = tmp_path / "podscribe.log"
+    log.write_text("started\nboom\n", encoding="utf-8")
+
+    path = write_failure_note(
+        unsafe_ref(), "download", directory=directory, occurred_at=NOW, log_file=log
+    )
+
+    assert path == directory / failure_note_name(unsafe_ref())
+    text = path.read_text(encoding="utf-8")
+    assert "boom" in text
+    assert yaml.safe_load(text.split("---", 2)[1])["reason"] == "download"
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1051")
+def test_clear_failure_note_removes_only_the_expected_name(tmp_path):
+    from podscribe.failure import clear_failure_note
+
+    directory = tmp_path / "failures"
+    directory.mkdir()
+    expected = directory / "_Failed - A B C D E F G H I J K L.md"
+    expected.write_text("failure\n", encoding="utf-8")
+    other = directory / "_Failed - Another episode.md"
+    other.write_text("keep\n", encoding="utf-8")
+
+    assert clear_failure_note(unsafe_ref(), directory=directory) == expected
+    assert not expected.exists()
+    assert other.exists()
+    assert clear_failure_note(unsafe_ref(), directory=directory) is None
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1051")
+def test_clear_failure_note_tolerates_a_missing_directory(tmp_path):
+    from podscribe.failure import clear_failure_note
+
+    assert clear_failure_note(unsafe_ref(), directory=tmp_path / "missing") is None
