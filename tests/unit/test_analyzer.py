@@ -115,7 +115,6 @@ def test_command_analyzer_rejects_bad_output(tmp_path, body):
         _command(tmp_path, body).analyze(tmp_path / "episode.mp3", REF)
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1058")
 @pytest.mark.parametrize(
     "segments",
     [

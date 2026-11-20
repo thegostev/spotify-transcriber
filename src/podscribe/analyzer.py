@@ -261,13 +261,29 @@ def build_analyzer(section: Mapping[str, Any], *, language: str = "en") -> Analy
     raise ConfigError(f"unknown analyzer backend {backend!r}; expected command, module or superwhisper")
 
 
+def _seconds(value: object, field: str) -> float:
+    """Return ``value`` as seconds, rejecting non-numeric input."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise AnalyzerError(f"analyzer command: segment {field} must be a number")
+    return float(value)
+
+
 def _piece(piece: object) -> tuple[float, float, str]:
-    """Read start, end and text from a word object or a mapping."""
+    """Read start, end and text from a word object or a mapping.
+
+    Raises:
+        AnalyzerError: Start or end is non-numeric, or text is not a string.
+    """
     if isinstance(piece, Mapping):
         start, end, text = piece.get("start", 0.0), piece.get("end"), piece.get("text", "")
     else:
         start, end, text = getattr(piece, "start", 0.0), getattr(piece, "end", None), getattr(piece, "text", "")
-    return float(start), float(end) if isinstance(end, (int, float)) else float(start), str(text)
+    if not isinstance(text, str):
+        raise AnalyzerError("analyzer command: segment text must be a string")
+    start_seconds = _seconds(start, "start")
+    if end is None:
+        return start_seconds, start_seconds, text
+    return start_seconds, _seconds(end, "end"), text
 
 
 def bucket_words(pieces: Iterable[object]) -> tuple[Segment, ...]:
