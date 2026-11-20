@@ -24,8 +24,7 @@ from podscribe.http import HttpClient, HttpClientLike
 from podscribe.itunes import find_feed
 from podscribe.models import EpisodeNote, EpisodeRef
 from podscribe.note import NoteExistsError, note_names, render_analysis_note, render_episode_note
-
-SUCCESS_STATUSES = ("planned", "done")
+from podscribe.queue import enqueue, open_store
 
 
 @dataclass(frozen=True, slots=True)
@@ -244,9 +243,9 @@ def build_parser() -> argparse.ArgumentParser:
     """Return the command line parser for ``podscribe``."""
     parser = argparse.ArgumentParser(prog="podscribe", description="Turn podcast episodes into Obsidian notes.")
     commands = parser.add_subparsers(dest="command", required=True)
-    add = commands.add_parser("add", help="write notes for one Spotify episode link")
+    add = commands.add_parser("add", help="queue one Spotify episode link")
     add.add_argument("episode_url", help="Spotify episode link")
-    add.add_argument("--dry-run", action="store_true", help="resolve the feed match without downloading or writing")
+    add.add_argument("--dry-run", action="store_true", help="report what would be queued without writing")
     add.add_argument("--config", default="config.yaml", help="path to config.yaml (default: ./config.yaml)")
     return parser
 
@@ -259,38 +258,45 @@ def main(
 ) -> int:
     """Run the command line; return the process exit code.
 
+    Client and analyzer are built only for commands that need them, so
+    ``add`` and ``status`` never load the configured analyzer.
+
     Args:
         argv: Arguments, ``sys.argv[1:]`` when None.
         client: HTTP client override, used by tests.
         analyzer: Analyzer override, used by tests.
 
     Returns:
-        0 when the episode was planned or written, 1 otherwise.
+        0 when the command succeeded, 1 otherwise.
     """
     args = build_parser().parse_args(argv)
     config = load_config(args.config)
+    if args.command == "add":
+        return _add_command(args, config)
+    return 1
+
+
+def _add_command(args: argparse.Namespace, config: Config) -> int:
+    """Queue one episode link and report what happened."""
+    if args.dry_run:
+        print(f"would queue: {args.episode_url}")
+        return 0
+    result = enqueue(open_store(config.paths["data_dir"]), args.episode_url)
+    if result.status == "already_done":
+        print(f"already done: {result.job.note_path or result.job.episode_url}")
+    elif result.status in ("already_queued", "already_running"):
+        print(f"{result.status.replace('_', ' ')}: {result.job.episode_url}")
+    elif result.status == "retry":
+        print(f"queued: {result.job.episode_url} (retry)")
+    else:
+        print(f"queued: {result.job.episode_url}")
+    return 0
+
+
+def _dependencies(
+    config: Config, client: HttpClientLike | None, analyzer: Analyzer | None
+) -> tuple[HttpClientLike, Analyzer]:
+    """Build the HTTP client and analyzer for commands that run the pipeline."""
     http = client or HttpClient(user_agent=str(config.intake["user_agent"]))
     backend = analyzer or build_analyzer(config.analyzer, language=str(config.speech.get("language", "en")))
-    outcome = add_episode(args.episode_url, config, client=http, analyzer=backend, dry_run=args.dry_run)
-    if outcome.status == "planned":
-        print(f"would write: {outcome.episode_note}")
-        print(f"would write: {outcome.analysis_note}")
-    elif outcome.status == "done":
-        print(f"wrote: {outcome.episode_note}")
-        if outcome.analysis_note:
-            print(f"wrote: {outcome.analysis_note}")
-        else:
-            print("no analysis")
-    elif outcome.status == "already_done":
-        print(f"already done: {outcome.episode_note}")
-    elif outcome.status == "no_feed":
-        print(f"no public feed for show: {outcome.ref.show}")
-    elif outcome.status == "unmatched":
-        print(f"unmatched episode: {outcome.ref.episode_title}")
-    else:
-        print(f"episode failed: {outcome.ref.episode_title}")
-    if outcome.reason:
-        print(f"failure reason: {outcome.reason}")
-    if outcome.failure_note:
-        print(f"failure note: {outcome.failure_note}")
-    return 0 if outcome.status in SUCCESS_STATUSES else 1
+    return http, backend

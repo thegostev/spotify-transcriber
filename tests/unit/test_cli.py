@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-import pytest
-
 from podscribe.analyzer import AnalyzerResult
 from podscribe.config import Config
 from podscribe.models import EpisodeRef, Segment, Transcript
@@ -211,7 +209,6 @@ def _write_config(tmp_path: Path) -> Path:
     return path
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1050")
 def test_main_add_queues_the_link_without_building_the_analyzer(tmp_path, capsys, monkeypatch):
     import podscribe.cli as cli
     from podscribe.queue import list_jobs, open_store
@@ -229,7 +226,6 @@ def test_main_add_queues_the_link_without_building_the_analyzer(tmp_path, capsys
     assert list_jobs(open_store(str(tmp_path / "data")))[0].state == "queued"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1050")
 def test_main_add_reports_an_already_done_link(tmp_path, capsys):
     from podscribe.cli import main
     from podscribe.queue import claim_next, enqueue, finish, open_store
@@ -246,7 +242,6 @@ def test_main_add_reports_an_already_done_link(tmp_path, capsys):
     assert capsys.readouterr().out == f"already done: {tmp_path / 'out' / 'episode.md'}\n"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1050")
 def test_main_add_dry_run_writes_nothing(tmp_path, capsys):
     from podscribe.cli import main
 
