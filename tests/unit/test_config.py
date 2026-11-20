@@ -51,13 +51,12 @@ def write_config(tmp_path: Path, text: str = BASE_CONFIG) -> Path:
     return path
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1046")
 def test_load_config_exposes_every_section(tmp_path):
     from podscribe.config import load_config
 
     config = load_config(write_config(tmp_path))
 
-    assert config.paths["data_dir"] == "~/.podscribe"
+    assert set(config.paths) == {"output_dir", "failure_notes_dir", "data_dir", "log_file"}
     assert config.intake["match_window_days"] == 2
     assert config.speech["plan1"]["model"] == "lfm3-audio"
     assert config.llm["model"] == "deepseek-v4.1-flash:cloud"
@@ -66,7 +65,6 @@ def test_load_config_exposes_every_section(tmp_path):
     assert config.source == tmp_path / "config.yaml"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1046")
 def test_load_config_expands_tilde_in_paths(tmp_path, monkeypatch):
     from podscribe.config import load_config
 
@@ -77,7 +75,6 @@ def test_load_config_expands_tilde_in_paths(tmp_path, monkeypatch):
     assert config.paths["log_file"] == str(tmp_path / "home" / ".podscribe" / "podscribe.log")
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1046")
 def test_load_config_names_missing_key_and_file(tmp_path):
     from podscribe.config import ConfigError, load_config
 
@@ -91,7 +88,6 @@ def test_load_config_names_missing_key_and_file(tmp_path):
     assert str(path) in str(caught.value)
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1046")
 def test_load_config_rejects_missing_file(tmp_path):
     from podscribe.config import ConfigError, load_config
 
@@ -99,7 +95,6 @@ def test_load_config_rejects_missing_file(tmp_path):
         load_config(tmp_path / "missing.yaml")
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1046")
 def test_load_config_rejects_non_mapping(tmp_path):
     from podscribe.config import ConfigError, load_config
 
