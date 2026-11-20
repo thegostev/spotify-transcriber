@@ -11,7 +11,14 @@ from podscribe.analyzer import Analyzer, build_analyzer
 from podscribe.config import Config, load_config
 from podscribe.download import download_audio
 from podscribe.episode_page import parse_episode_page
-from podscribe.failure import failure_note_path, log_line, write_failure_note
+from podscribe.failure import (
+    Notifier,
+    clear_failure_note,
+    failure_note_path,
+    log_line,
+    notify_macos,
+    write_failure_note,
+)
 from podscribe.feed import match_feed_item
 from podscribe.http import HttpClient, HttpClientLike
 from podscribe.itunes import find_feed
@@ -53,6 +60,7 @@ def _record_failure(
     config: Config,
     occurred_at: datetime,
     dry_run: bool,
+    notifier: Notifier,
 ) -> AddOutcome:
     """Write the failure note, or report its path during a dry run.
 
@@ -67,6 +75,7 @@ def _record_failure(
         config: Validated configuration; paths only.
         occurred_at: When the failure was recorded.
         dry_run: Report the would-be path without writing anything.
+        notifier: Called once when ``notifications.macos`` is true.
 
     Returns:
         The failure outcome.
@@ -82,6 +91,8 @@ def _record_failure(
     except OSError as exc:
         log_line(f"could not write failure note {note}: {exc}")
         note = None
+    if config.notifications.get("macos"):
+        notifier(f"podscribe failed: {reason}", f"{ref.show} - {ref.episode_title}")
     return AddOutcome(status, ref, feed_url=feed_url, reason=reason, failure_note=note)
 
 
@@ -93,6 +104,7 @@ def add_episode(
     analyzer: Analyzer,
     dry_run: bool = False,
     now: datetime | None = None,
+    notifier: Notifier | None = None,
 ) -> AddOutcome:
     """Resolve one episode link and write its notes.
 
@@ -105,10 +117,12 @@ def add_episode(
         analyzer: The configured analyzer.
         dry_run: Resolve and report without downloading or writing.
         now: Time written as ``analyzed_at``; defaults to the current time.
+        notifier: Failure notifier; ``osascript`` when None.
 
     Returns:
         The outcome, with the note paths that were planned or written.
     """
+    notify = notifier or notify_macos
     ref = parse_episode_page(client.get_text(episode_url))
     feed_url = find_feed(ref.show, client, search_url=config.intake["itunes_search_url"])
     if feed_url is None:
@@ -120,6 +134,7 @@ def add_episode(
             config=config,
             occurred_at=now or datetime.now(),
             dry_run=dry_run,
+            notifier=notify,
         )
     item = match_feed_item(
         client.get_text(feed_url), ref, tolerance_days=int(config.intake["match_window_days"])
@@ -133,11 +148,14 @@ def add_episode(
             config=config,
             occurred_at=now or datetime.now(),
             dry_run=dry_run,
+            notifier=notify,
         )
     output_dir = Path(config.paths["output_dir"])
     try:
         names = note_names(ref, ref.show, output_dir=output_dir)
     except NoteExistsError as exc:
+        if not dry_run:
+            clear_failure_note(ref, directory=Path(config.paths["failure_notes_dir"]))
         return AddOutcome("already_done", ref, feed_url=feed_url, episode_note=exc.path)
     episode_path = output_dir / names.episode
     analysis_path = output_dir / names.analysis
@@ -155,6 +173,7 @@ def add_episode(
             config=config,
             occurred_at=now or datetime.now(),
             dry_run=dry_run,
+            notifier=notify,
         )
     try:
         result = analyzer.analyze(audio, ref)
@@ -168,6 +187,7 @@ def add_episode(
             config=config,
             occurred_at=now or datetime.now(),
             dry_run=dry_run,
+            notifier=notify,
         )
     has_analysis = bool(result.analysis)
     stamp = now or datetime.now()
@@ -208,7 +228,9 @@ def add_episode(
             config=config,
             occurred_at=now or datetime.now(),
             dry_run=dry_run,
+            notifier=notify,
         )
+    clear_failure_note(ref, directory=Path(config.paths["failure_notes_dir"]))
     return AddOutcome(
         "done",
         ref,
@@ -263,6 +285,12 @@ def main(
         print(f"already done: {outcome.episode_note}")
     elif outcome.status == "no_feed":
         print(f"no public feed for show: {outcome.ref.show}")
-    else:
+    elif outcome.status == "unmatched":
         print(f"unmatched episode: {outcome.ref.episode_title}")
+    else:
+        print(f"episode failed: {outcome.ref.episode_title}")
+    if outcome.reason:
+        print(f"failure reason: {outcome.reason}")
+    if outcome.failure_note:
+        print(f"failure note: {outcome.failure_note}")
     return 0 if outcome.status in SUCCESS_STATUSES else 1

@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-import pytest
-
 from podscribe.analyzer import AnalyzerResult
 from podscribe.config import Config
 from podscribe.models import EpisodeRef, Segment, Transcript
@@ -412,7 +410,6 @@ def test_add_episode_failure_note_write_error_degrades_to_stderr(tmp_path, capsy
     assert "could not write failure note" in capsys.readouterr().err
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1051")
 def test_add_episode_notifies_once_for_unmatched(tmp_path):
     from podscribe.cli import add_episode
 
@@ -431,7 +428,6 @@ def test_add_episode_notifies_once_for_unmatched(tmp_path):
     assert "MCP, CLIs and agents" in calls[0][1]
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1051")
 def test_add_episode_notifies_when_the_failure_note_cannot_be_written(tmp_path):
     from podscribe.cli import add_episode
 
@@ -451,7 +447,6 @@ def test_add_episode_notifies_when_the_failure_note_cannot_be_written(tmp_path):
     assert len(calls) == 1
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1051")
 def test_add_episode_does_not_notify_on_success(tmp_path):
     from podscribe.cli import add_episode
 
@@ -468,7 +463,6 @@ def test_add_episode_does_not_notify_on_success(tmp_path):
     assert calls == []
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1051")
 def test_add_episode_notification_disabled_by_config(tmp_path):
     from podscribe.cli import add_episode
 
@@ -484,7 +478,6 @@ def test_add_episode_notification_disabled_by_config(tmp_path):
     assert calls == []
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1051")
 def test_add_episode_dry_run_does_not_notify(tmp_path):
     from podscribe.cli import add_episode
 
@@ -501,7 +494,6 @@ def test_add_episode_dry_run_does_not_notify(tmp_path):
     assert calls == []
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1051")
 def test_add_episode_success_removes_the_failure_note(tmp_path):
     from podscribe.cli import add_episode
 
@@ -534,7 +526,6 @@ def test_add_episode_success_removes_the_failure_note(tmp_path):
     assert len(calls) == 1
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1051")
 def test_add_episode_already_done_removes_the_failure_note(tmp_path):
     from podscribe.cli import add_episode
 
@@ -554,7 +545,6 @@ def test_add_episode_already_done_removes_the_failure_note(tmp_path):
     assert not failed.failure_note.exists()
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1051")
 def test_main_reports_the_failure_reason_and_note_path(tmp_path, capsys):
     from podscribe.cli import main
 
