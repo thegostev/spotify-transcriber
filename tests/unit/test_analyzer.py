@@ -2,14 +2,11 @@
 
 from pathlib import Path
 
-import pytest
-
 from podscribe.models import EpisodeRef, Segment, Transcript
 
 REF = EpisodeRef(spotify_url="https://open.spotify.com/episode/abc", show="Show", episode_title="Episode")
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1058")
 def test_analyzer_result_carries_transcript_analysis_and_backend():
     from podscribe.analyzer import AnalyzerResult
 
@@ -21,7 +18,6 @@ def test_analyzer_result_carries_transcript_analysis_and_backend():
     assert result.analyzer == "fake"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1058")
 def test_analyzer_protocol_accepts_a_structural_implementation():
     from podscribe.analyzer import Analyzer, AnalyzerResult
 
@@ -36,7 +32,6 @@ def test_analyzer_protocol_accepts_a_structural_implementation():
     assert result.transcript.segments[0].text == "Episode"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1058")
 def test_single_segment_helper_puts_text_at_zero():
     from podscribe.analyzer import single_segment
 
