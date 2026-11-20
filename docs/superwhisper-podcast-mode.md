@@ -11,8 +11,8 @@ Superwhisper with these settings:
 | Key | `podcast` |
 | Type | `custom` |
 | Language | `en` |
-| Voice model | `Scribe` (cloud) |
-| Language model | `GPT-6 Luna` |
+| Voice model | `Nova 3` (cloud) |
+| Language model | `S1-Language` |
 | Prompt | see below |
 
 The key `podcast` is what podscribe writes as `analyzer.superwhisper.mode_key`
@@ -125,6 +125,10 @@ Aim for roughly 8-25 bullets in total, depending on how much real content the ep
 Adapt the role sentence (here: a senior technical product manager) to your own
 listening goals; the rest is the output contract podscribe renders as the
 analysis note.
+
+## Long files
+
+Superwhisper's ElevenLabs Scribe model returned an empty transcript for file imports longer than 15 minutes on the Mac mini. Deepgram Nova 3 transcribed a 60-minute file (70,296 chars) and its analysis in one pass. Use Nova 3 (or another long-file model) for episodes.
 
 ## What this mode produces
 
