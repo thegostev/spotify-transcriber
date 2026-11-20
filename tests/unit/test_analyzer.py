@@ -115,6 +115,25 @@ def test_command_analyzer_rejects_bad_output(tmp_path, body):
         _command(tmp_path, body).analyze(tmp_path / "episode.mp3", REF)
 
 
+@pytest.mark.xfail(strict=True, reason="LAG-1058")
+@pytest.mark.parametrize(
+    "segments",
+    [
+        [{"start": "abc", "end": 1, "text": "Hi"}],
+        [{"start": 0, "end": "abc", "text": "Hi"}],
+        [{"start": 0, "end": 1, "text": None}],
+    ],
+)
+def test_command_analyzer_rejects_malformed_word_timestamps(tmp_path, segments):
+    from podscribe.analyzer import AnalyzerError
+
+    payload = {"transcript": "x", "segments": segments}
+    body = f"import json\nprint(json.dumps({payload!r}))\n"
+
+    with pytest.raises(AnalyzerError):
+        _command(tmp_path, body).analyze(tmp_path / "episode.mp3", REF)
+
+
 def test_command_analyzer_times_out(tmp_path):
     from podscribe.analyzer import AnalyzerError
 
