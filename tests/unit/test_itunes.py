@@ -3,12 +3,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-import pytest
-
 FIXTURES = Path(__file__).parents[1] / "fixtures"
 ITUNES_SEARCH = FIXTURES / "itunes_search_huberman.json"
-
-pytestmark = pytest.mark.xfail(strict=True, reason="LAG-1046")
 
 
 class _FakeClient:
