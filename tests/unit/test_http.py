@@ -1,10 +1,6 @@
 import io
 import urllib.request
 
-import pytest
-
-pytestmark = pytest.mark.xfail(strict=True, reason="LAG-1046")
-
 
 class _Response(io.BytesIO):
     """Minimal urlopen response: a context manager over a byte buffer."""
