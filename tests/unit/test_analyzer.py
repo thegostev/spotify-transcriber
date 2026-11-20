@@ -82,6 +82,22 @@ def test_command_analyzer_uses_optional_segments_and_drops_empty_analysis(tmp_pa
     assert result.analysis is None
 
 
+@pytest.mark.xfail(strict=True, reason="LAG-1058")
+def test_command_analyzer_buckets_word_level_segments(tmp_path):
+    analyzer = _command(
+        tmp_path,
+        "import json\n"
+        "print(json.dumps({'transcript': 'ignored', 'segments': ["
+        "{'start': 0.0, 'end': 0.5, 'text': 'Hello'}, "
+        "{'start': 0.5, 'end': 1.0, 'text': 'world.'}, "
+        "{'start': 31.0, 'end': 31.5, 'text': 'Bye.'}]}))\n",
+    )
+
+    result = analyzer.analyze(tmp_path / "episode.mp3", REF)
+
+    assert result.transcript.segments == (Segment(0.0, "Hello world."), Segment(31.0, "Bye."))
+
+
 @pytest.mark.parametrize(
     "body",
     [
