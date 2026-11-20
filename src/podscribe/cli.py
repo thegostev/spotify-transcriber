@@ -44,6 +44,8 @@ class AddOutcome:
         analysis_note: Target or written analysis note, None when there is none.
         reason: unmatched, download, analyzer or write; None on success.
         failure_note: Written or would-be failure note, None when none was made.
+        detail: The underlying error message for download, analyzer and write
+            failures; None for the other outcomes.
     """
 
     status: str
@@ -53,6 +55,7 @@ class AddOutcome:
     analysis_note: Path | None = None
     reason: str | None = None
     failure_note: Path | None = None
+    detail: str | None = None
 
 
 def _record_failure(
@@ -65,6 +68,7 @@ def _record_failure(
     occurred_at: datetime,
     dry_run: bool,
     notifier: Notifier,
+    detail: str | None = None,
 ) -> AddOutcome:
     """Write the failure note, or report its path during a dry run.
 
@@ -80,6 +84,7 @@ def _record_failure(
         occurred_at: When the failure was recorded.
         dry_run: Report the would-be path without writing anything.
         notifier: Called once when ``notifications.macos`` is true.
+        detail: The underlying error message, when there is one.
 
     Returns:
         The failure outcome.
@@ -87,7 +92,9 @@ def _record_failure(
     directory = Path(config.paths["failure_notes_dir"])
     note: Path | None = failure_note_path(ref, directory=directory)
     if dry_run:
-        return AddOutcome(status, ref, feed_url=feed_url, reason=reason, failure_note=note)
+        return AddOutcome(
+            status, ref, feed_url=feed_url, reason=reason, failure_note=note, detail=detail
+        )
     try:
         note = write_failure_note(
             ref, reason, directory=directory, occurred_at=occurred_at, log_file=config.paths["log_file"]
@@ -97,7 +104,9 @@ def _record_failure(
         note = None
     if config.notifications.get("macos"):
         notifier(f"podscribe failed: {reason}", f"{ref.show} - {ref.episode_title}")
-    return AddOutcome(status, ref, feed_url=feed_url, reason=reason, failure_note=note)
+    return AddOutcome(
+        status, ref, feed_url=feed_url, reason=reason, failure_note=note, detail=detail
+    )
 
 
 def add_episode(
@@ -178,6 +187,7 @@ def add_episode(
             occurred_at=now or datetime.now(),
             dry_run=dry_run,
             notifier=notify,
+            detail=str(exc),
         )
     try:
         result = analyzer.analyze(audio, ref)
@@ -192,6 +202,7 @@ def add_episode(
             occurred_at=now or datetime.now(),
             dry_run=dry_run,
             notifier=notify,
+            detail=str(exc),
         )
     has_analysis = bool(result.analysis)
     stamp = now or datetime.now()
@@ -233,6 +244,7 @@ def add_episode(
             occurred_at=now or datetime.now(),
             dry_run=dry_run,
             notifier=notify,
+            detail=str(exc),
         )
     clear_failure_note(ref, directory=Path(config.paths["failure_notes_dir"]))
     return AddOutcome(

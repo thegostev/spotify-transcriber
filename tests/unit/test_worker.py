@@ -198,7 +198,7 @@ def test_run_jobs_marks_a_show_without_a_feed_failed(config_factory):
     assert job.reason == "no public feed for show: Talk Python To Me"
 
 
-def test_run_jobs_records_an_exception_and_its_traceback(config_factory):
+def test_run_jobs_records_an_analyzer_error_from_the_pipeline(config_factory):
     from podscribe.queue import enqueue, list_jobs
     from podscribe.worker import run_jobs
 
@@ -226,4 +226,3 @@ def test_run_jobs_records_an_exception_and_its_traceback(config_factory):
     assert job.reason == "analyzer boom"
     assert lines[0] == f"start {URL}"
     assert f"failed {URL}: analyzer boom" in lines
-    assert any("RuntimeError: analyzer boom" in line for line in lines[2:])

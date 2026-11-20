@@ -583,19 +583,27 @@ def test_add_episode_already_done_removes_the_failure_note(tmp_path):
     assert not failed.failure_note.exists()
 
 
-def test_main_reports_the_failure_reason_and_note_path(tmp_path, capsys):
+def test_main_run_reports_the_failure_reason_and_note_path(tmp_path, capsys):
     from podscribe.cli import main
 
-    exit_code = main(
-        ["add", "https://open.spotify.com/episode/abc123", "--config", str(_write_config(tmp_path))],
-        client=WrongTitleClient(),
-        analyzer=FakeAnalyzer(),
+    config_path = str(_write_config(tmp_path))
+    assert main(["add", "https://open.spotify.com/episode/abc123", "--config", config_path]) == 0
+    assert (
+        main(
+            ["run", "--once", "--config", config_path],
+            client=WrongTitleClient(),
+            analyzer=FakeAnalyzer(),
+        )
+        == 0
     )
+    assert "unmatched" in (tmp_path / "data" / "podscribe.log").read_text(encoding="utf-8")
 
+    status = main(["status", "--config", config_path])
     output = capsys.readouterr().out
-    assert exit_code == 1
-    assert "failure reason: unmatched" in output
-    assert "failure note:" in output
-    assert "_Failed - MCP, CLIs and agents.md" in output
+    assert status == 0
+    assert "unmatched" in output
+    assert "MCP, CLIs and agents" in output
+    notes = sorted((tmp_path / "failures").glob("_Failed - *.md"))
+    assert [path.name for path in notes] == ["_Failed - MCP, CLIs and agents.md"]
 
 

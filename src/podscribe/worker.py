@@ -53,6 +53,8 @@ def process_job(
         return finish(store, job, UNMATCHED, reason=reason, now=now)
     if outcome.status == "no_feed":
         reason = f"no public feed for show: {outcome.ref.show}"
+    elif outcome.status == "failed":
+        reason = outcome.detail or outcome.reason or "add failed"
     else:
         reason = f"add ended as {outcome.status}"
     log(f"failed {job.episode_url}: {reason}")
