@@ -26,7 +26,6 @@ def fake_run(returncode=0, stdout="", stderr="", calls=None, raises=None):
     return run
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1046")
 def test_get_secret_asks_security_and_strips_newline(monkeypatch):
     from podscribe.keychain import get_secret
 
@@ -37,7 +36,6 @@ def test_get_secret_asks_security_and_strips_newline(monkeypatch):
     assert calls == [EXPECTED_COMMAND]
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1046")
 def test_get_secret_failure_never_leaks_the_value(monkeypatch):
     from podscribe.keychain import KeychainError, get_secret
 
@@ -56,7 +54,6 @@ def test_get_secret_failure_never_leaks_the_value(monkeypatch):
     assert caught.value.__cause__ is None
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1046")
 def test_get_secret_wraps_missing_security_binary(monkeypatch):
     from podscribe.keychain import KeychainError, get_secret
 
@@ -69,7 +66,6 @@ def test_get_secret_wraps_missing_security_binary(monkeypatch):
         get_secret("ollama-cloud", "api-key")
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1046")
 def test_get_secret_rejects_empty_value(monkeypatch):
     from podscribe.keychain import KeychainError, get_secret
 
