@@ -2,8 +2,6 @@
 
 from datetime import date, datetime
 
-import pytest
-
 SPOTIFY_URL = "https://open.spotify.com/episode/abc"
 FEED_URL = "https://example.com/feed.xml"
 
@@ -37,7 +35,6 @@ def split_frontmatter(text):
     return head.splitlines(), body
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1046")
 def test_render_episode_note_writes_the_expected_frontmatter():
     from podscribe.note import render_episode_note
 
@@ -57,7 +54,6 @@ def test_render_episode_note_writes_the_expected_frontmatter():
     ]
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1046")
 def test_render_episode_note_writes_transcript_lines():
     from podscribe.note import render_episode_note
 
@@ -68,7 +64,6 @@ def test_render_episode_note_writes_transcript_lines():
     assert "[01:02:05] world" in body
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1046")
 def test_render_episode_note_renders_summary_and_key_points():
     from podscribe.note import render_episode_note
 
@@ -81,7 +76,6 @@ def test_render_episode_note_renders_summary_and_key_points():
     assert body.index("## Summary") < body.index("## Key points") < body.index("## Transcript")
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1046")
 def test_render_episode_note_renders_tags_and_cleanup_when_present():
     from podscribe.note import render_episode_note
 
@@ -93,7 +87,6 @@ def test_render_episode_note_renders_tags_and_cleanup_when_present():
     assert 'cleanup: "partial"' in head
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1046")
 def test_render_episode_note_omits_absent_summary_tags_and_unknown_values():
     from podscribe.models import EpisodeRef, Transcript
     from podscribe.note import render_episode_note
@@ -114,7 +107,6 @@ def test_render_episode_note_omits_absent_summary_tags_and_unknown_values():
     assert "[0" not in body
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1046")
 def test_render_episode_note_escapes_quotes_in_yaml():
     from podscribe.models import EpisodeRef
     from podscribe.note import render_episode_note

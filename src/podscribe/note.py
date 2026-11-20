@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import re
 from datetime import date
 from pathlib import Path
 
-from podscribe.models import EpisodeRef
+from podscribe.models import EpisodeNote, EpisodeRef
 
 UNSAFE_CHARS = re.compile(r'[:\[\]#^|\\*"<>?]')
 WHITESPACE = re.compile(r"\s+")
@@ -78,3 +79,56 @@ def note_filename(ref: EpisodeRef, show: str, *, output_dir: Path) -> str:
     if alternate_path.exists() and _frontmatter_value(alternate_path, "spotify_url") == ref.spotify_url:
         raise NoteExistsError(alternate_path)
     return alternate
+
+
+def _yaml_string(value: str) -> str:
+    """Return a string as a YAML-safe double-quoted scalar."""
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _frontmatter_lines(note: EpisodeNote) -> list[str]:
+    """Render the note frontmatter, tags and cleanup status included."""
+    ref = note.ref
+    transcribed = note.transcript.transcribed_at
+    published = ref.published_at.isoformat() if ref.published_at else "null"
+    transcribed_text = _yaml_string(transcribed.isoformat(timespec="seconds")) if transcribed else "null"
+    duration = note.duration_seconds if note.duration_seconds is not None else "null"
+    lines = [
+        FRONTMATTER_FENCE,
+        f"show: {_yaml_string(ref.show)}",
+        f"episode: {_yaml_string(ref.episode_title)}",
+        f"publish_date: {published}",
+        f"spotify_url: {_yaml_string(ref.spotify_url)}",
+        f"feed_url: {_yaml_string(note.feed_url)}",
+        f"duration: {duration}",
+        f"language: {_yaml_string(note.transcript.language)}",
+        f"speech_model: {_yaml_string(note.transcript.model)}",
+        f"transcribed_at: {transcribed_text}",
+    ]
+    if note.tags:
+        lines.append(f"tags: {json.dumps(list(note.tags), ensure_ascii=False)}")
+    lines.extend([f"cleanup: {_yaml_string(note.cleanup)}", FRONTMATTER_FENCE])
+    return lines
+
+
+def render_episode_note(note: EpisodeNote) -> str:
+    """Render one episode note as Markdown: frontmatter, summary, transcript.
+
+    Sections for summary and key points are written only when the model holds
+    them; the transcript always gets a heading.
+
+    Args:
+        note: Everything the note contains.
+
+    Returns:
+        The complete Markdown document, ending in a newline.
+    """
+    parts = ["\n".join(_frontmatter_lines(note)), ""]
+    if note.summary:
+        parts.extend(["## Summary", "", note.summary.strip(), ""])
+    if note.key_points:
+        points = "\n".join(f"- {point}" for point in note.key_points)
+        parts.extend(["## Key points", "", points, ""])
+    parts.extend(["## Transcript", ""])
+    parts.extend(f"[{segment.timestamp}] {segment.text}" for segment in note.transcript.segments)
+    return "\n".join(parts) + "\n"
