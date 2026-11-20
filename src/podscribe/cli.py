@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 
@@ -84,10 +84,14 @@ def add_episode(
     audio = download_audio(item, Path(config.paths["data_dir"]) / "audio", client)
     result = analyzer.analyze(audio, ref)
     has_analysis = bool(result.analysis)
+    stamp = now or datetime.now()
+    transcript = result.transcript
+    if transcript.transcribed_at is None:
+        transcript = replace(transcript, transcribed_at=stamp)
     note = EpisodeNote(
         ref=ref,
         feed_url=feed_url,
-        transcript=result.transcript,
+        transcript=transcript,
         duration_seconds=item.duration_seconds,
         cleanup="skipped",
     )
@@ -103,7 +107,7 @@ def add_episode(
             ref=ref,
             analyzer=result.analyzer,
             analysis=result.analysis,
-            analyzed_at=now or datetime.now(),
+            analyzed_at=stamp,
             episode_note=names.episode,
         ),
         encoding="utf-8",

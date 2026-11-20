@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-import pytest
-
 from podscribe.analyzer import AnalyzerResult
 from podscribe.config import Config
 from podscribe.models import EpisodeRef, Segment, Transcript
@@ -224,7 +222,6 @@ def test_main_dry_run_prints_the_target_path(tmp_path, capsys):
     assert "26-10-15 MCP, CLIs and agents.md" in capsys.readouterr().out
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1046")
 def test_add_episode_fills_a_missing_transcribed_at(tmp_path):
     from podscribe.cli import add_episode
 
