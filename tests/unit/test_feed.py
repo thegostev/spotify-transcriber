@@ -23,13 +23,10 @@ SIMPLE_FEED = """<?xml version="1.0"?>
 </rss>
 """
 
-pytestmark = pytest.mark.xfail(strict=True, reason="LAG-1046")
-
 
 def test_match_feed_item_matches_the_recorded_episode():
-    from podscribe.feed import match_feed_item
-
     from podscribe.episode_page import parse_episode_page
+    from podscribe.feed import match_feed_item
 
     ref = parse_episode_page(SPOTIFY_PAGE.read_text(encoding="utf-8"))
 
@@ -46,7 +43,6 @@ def test_match_feed_item_matches_the_recorded_episode():
 
 def test_match_feed_item_returns_none_for_an_unmatched_episode():
     from podscribe.feed import match_feed_item
-
     from podscribe.models import EpisodeRef
 
     ref = EpisodeRef(
@@ -70,7 +66,6 @@ def test_match_feed_item_returns_none_for_an_unmatched_episode():
 )
 def test_match_feed_item_tolerates_dates_around_the_spotify_date(published_at, tolerance_days, matched):
     from podscribe.feed import match_feed_item
-
     from podscribe.models import EpisodeRef
 
     ref = EpisodeRef(
@@ -85,7 +80,6 @@ def test_match_feed_item_tolerates_dates_around_the_spotify_date(published_at, t
 
 def test_match_feed_item_falls_back_to_title_when_spotify_has_no_date():
     from podscribe.feed import match_feed_item
-
     from podscribe.models import EpisodeRef
 
     ref = EpisodeRef(
@@ -102,7 +96,6 @@ def test_match_feed_item_falls_back_to_title_when_spotify_has_no_date():
 
 def test_match_feed_item_parses_clock_style_durations_and_guid():
     from podscribe.feed import match_feed_item
-
     from podscribe.models import EpisodeRef
 
     ref = EpisodeRef(
@@ -121,7 +114,6 @@ def test_match_feed_item_parses_clock_style_durations_and_guid():
 
 def test_match_feed_item_skips_items_without_audio():
     from podscribe.feed import match_feed_item
-
     from podscribe.models import EpisodeRef
 
     feed = """<rss><channel><item>
