@@ -61,6 +61,9 @@ def _segment_list(raw: object) -> tuple[Segment, ...]:
         return ()
     if not isinstance(raw, list):
         raise AnalyzerError("analyzer command: segments must be a list")
+    word_level = bool(raw) and all(isinstance(item, dict) and "end" in item for item in raw)
+    if word_level:
+        return bucket_words(raw)
     segments = []
     for item in raw:
         if not isinstance(item, dict) or not isinstance(item.get("text"), str):
