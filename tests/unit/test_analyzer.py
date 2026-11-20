@@ -63,7 +63,7 @@ def test_command_analyzer_maps_json_to_one_segment_and_analysis(tmp_path):
 
     assert result.analyzer == "command"
     assert result.transcript == Transcript(
-        segments=(Segment(0.0, "Hello world."),), language="en", model="command"
+        segments=(Segment(0.0, "Hello world."),), language="en", model="command", timed=False
     )
     assert result.analysis == "Notes"
 
@@ -82,7 +82,6 @@ def test_command_analyzer_uses_optional_segments_and_drops_empty_analysis(tmp_pa
     assert result.analysis is None
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1046")
 def test_command_analyzer_marks_the_whole_text_fallback_as_untimed(tmp_path):
     analyzer = _command(tmp_path, "import json; print(json.dumps({'transcript': 'Hello world.'}))\n")
 
@@ -91,7 +90,6 @@ def test_command_analyzer_marks_the_whole_text_fallback_as_untimed(tmp_path):
     assert result.transcript.timed is False
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1046")
 def test_command_analyzer_keeps_explicit_timestamps(tmp_path):
     analyzer = _command(
         tmp_path,
@@ -315,7 +313,7 @@ def test_superwhisper_analyzer_maps_one_pass_results(tmp_path, monkeypatch):
 
     result = SuperwhisperAnalyzer(wf_path=tmp_path, mode_key="podcast", timeout_seconds=600).analyze(audio, REF)
 
-    assert result.transcript == Transcript((Segment(0.0, "Hello there."),), "en", "podcast")
+    assert result.transcript == Transcript((Segment(0.0, "Hello there."),), "en", "podcast", timed=False)
     assert result.analysis == "Clean notes"
     assert result.analyzer == "superwhisper"
     assert client.call == {
@@ -348,7 +346,6 @@ def test_superwhisper_analyzer_buckets_word_segments(tmp_path, monkeypatch):
     assert result.transcript.model == "superwhisper"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1046")
 def test_superwhisper_analyzer_marks_the_whole_text_fallback_as_untimed(tmp_path, monkeypatch):
     from types import SimpleNamespace
 

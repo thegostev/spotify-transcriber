@@ -282,5 +282,8 @@ def render_episode_note(
         points = "\n".join(f"- {point}" for point in note.key_points)
         parts.extend(["## Key points", "", points, ""])
     parts.extend(["## Transcript", ""])
-    parts.extend(f"[{segment.timestamp}] {segment.text}" for segment in note.transcript.segments)
+    if note.transcript.timed:
+        parts.extend(f"[{segment.timestamp}] {segment.text}" for segment in note.transcript.segments)
+    else:
+        parts.extend(segment.text for segment in note.transcript.segments)
     return "\n".join(parts) + "\n"

@@ -114,10 +114,13 @@ class CommandAnalyzer:
         text = payload.get("transcript")
         if not isinstance(text, str) or not text.strip():
             raise AnalyzerError("analyzer command: output has no transcript")
-        segments = _segment_list(payload.get("segments")) or single_segment(text)
+        parsed = _segment_list(payload.get("segments"))
+        segments = parsed or single_segment(text)
         analysis = payload.get("analysis")
         analysis_text = analysis.strip() if isinstance(analysis, str) and analysis.strip() else None
-        transcript = Transcript(segments=segments, language=self.language, model="command")
+        transcript = Transcript(
+            segments=segments, language=self.language, model="command", timed=bool(parsed)
+        )
         return AnalyzerResult(transcript=transcript, analysis=analysis_text, analyzer="command")
 
 
@@ -129,7 +132,7 @@ def _normalise_module_result(raw: object, name: str, language: str) -> AnalyzerR
         text, analysis = raw
         if isinstance(text, str) and text.strip():
             analysis_text = analysis.strip() if isinstance(analysis, str) and analysis.strip() else None
-            transcript = Transcript(segments=single_segment(text), language=language, model=name)
+            transcript = Transcript(segments=single_segment(text), language=language, model=name, timed=False)
             return AnalyzerResult(transcript=transcript, analysis=analysis_text, analyzer=f"module:{name}")
     raise AnalyzerError(f"analyzer module {name} returned neither AnalyzerResult nor (text, analysis)")
 
@@ -217,11 +220,16 @@ class SuperwhisperAnalyzer:
         if not isinstance(text, str) or not text.strip():
             raise AnalyzerError("superwhisper analyzer returned no transcript")
         words = getattr(raw, "segments", ()) or ()
-        segments = bucket_words(words) if words else single_segment(text)
+        segments = bucket_words(words) if words else ()
         analysis = getattr(raw, "analysis", None)
         analysis_text = analysis.strip() if isinstance(analysis, str) and analysis.strip() else None
         model = getattr(raw, "mode_name", None) or "superwhisper"
-        transcript = Transcript(segments=segments or single_segment(text), language=self.language, model=str(model))
+        transcript = Transcript(
+            segments=segments or single_segment(text),
+            language=self.language,
+            model=str(model),
+            timed=bool(segments),
+        )
         return AnalyzerResult(transcript=transcript, analysis=analysis_text, analyzer="superwhisper")
 
 

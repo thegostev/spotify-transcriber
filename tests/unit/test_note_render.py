@@ -2,8 +2,6 @@
 
 from datetime import date, datetime
 
-import pytest
-
 SPOTIFY_URL = "https://open.spotify.com/episode/abc"
 FEED_URL = "https://example.com/feed.xml"
 
@@ -66,7 +64,6 @@ def test_render_episode_note_writes_transcript_lines():
     assert "[01:02:05] world" in body
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1046")
 def test_render_episode_note_omits_timestamps_for_an_untimed_transcript():
     from podscribe.models import Segment, Transcript
     from podscribe.note import render_episode_note

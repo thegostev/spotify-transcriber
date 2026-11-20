@@ -79,6 +79,7 @@ class Transcript:
         model: Concrete speech model id, as written to the note.
         plan: Which speech plan produced most segments: plan1, plan2 or mixed.
         transcribed_at: When transcription finished.
+        timed: Whether the segments carry analyzer-reported timestamps.
     """
 
     segments: tuple[Segment, ...]
@@ -86,6 +87,7 @@ class Transcript:
     model: str
     plan: str = "plan1"
     transcribed_at: datetime | None = None
+    timed: bool = True
 
 
 @dataclass(frozen=True, slots=True)

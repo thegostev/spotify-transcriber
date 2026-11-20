@@ -54,7 +54,7 @@ analyzer:
   `transcript` is required; `analysis` and `segments` are optional. A non-zero exit, timeout, invalid JSON, a non-object payload or a missing transcript fails the episode with `AnalyzerError`.
 - `module` - `package.module:Class`; podscribe instantiates it and calls `analyze(audio: Path, ref: EpisodeRef)`. It may return an `AnalyzerResult` or `(transcript_text, analysis_or_None)`.
 
-The transcript may carry timestamps as word-level `segments` (`{"start", "end", "text"}`); they are grouped into lines of about 20-40 seconds. Without timestamps the whole text becomes one segment at `00:00:00`.
+The transcript may carry timestamps as word-level `segments` (`{"start", "end", "text"}`); they are grouped into lines of about 20-40 seconds. Without timestamps the whole text becomes one untimed segment and is rendered as plain paragraphs, without a fabricated `00:00:00` prefix.
 
 The template's `speech` and `llm` sections are legacy and optional: v1 uses the analyzer instead of local speech plans and cleanup passes.
 
