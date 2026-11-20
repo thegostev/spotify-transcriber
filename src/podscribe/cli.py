@@ -8,12 +8,13 @@ from pathlib import Path
 
 from podscribe.analyzer import Analyzer
 from podscribe.config import Config
+from podscribe.download import download_audio
 from podscribe.episode_page import parse_episode_page
 from podscribe.feed import match_feed_item
 from podscribe.http import HttpClientLike
 from podscribe.itunes import find_feed
-from podscribe.models import EpisodeRef
-from podscribe.note import NoteExistsError, note_names
+from podscribe.models import EpisodeNote, EpisodeRef
+from podscribe.note import NoteExistsError, note_names, render_analysis_note, render_episode_note
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,4 +78,33 @@ def add_episode(
     analysis_path = output_dir / names.analysis
     if dry_run:
         return AddOutcome("planned", ref, feed_url=feed_url, episode_note=episode_path, analysis_note=analysis_path)
-    raise NotImplementedError("write path lands next")
+    audio = download_audio(item, Path(config.paths["data_dir"]) / "audio", client)
+    result = analyzer.analyze(audio, ref)
+    has_analysis = bool(result.analysis)
+    note = EpisodeNote(
+        ref=ref,
+        feed_url=feed_url,
+        transcript=result.transcript,
+        duration_seconds=item.duration_seconds,
+        cleanup="skipped",
+    )
+    output_dir.mkdir(parents=True, exist_ok=True)
+    episode_text = render_episode_note(
+        note, analysis_note=names.analysis if has_analysis else None, analyzer=result.analyzer
+    )
+    episode_path.write_text(episode_text, encoding="utf-8")
+    if not result.analysis:
+        return AddOutcome("done", ref, feed_url=feed_url, episode_note=episode_path)
+    analysis_path.write_text(
+        render_analysis_note(
+            ref=ref,
+            analyzer=result.analyzer,
+            analysis=result.analysis,
+            analyzed_at=now or datetime.now(),
+            episode_note=names.episode,
+        ),
+        encoding="utf-8",
+    )
+    return AddOutcome(
+        "done", ref, feed_url=feed_url, episode_note=episode_path, analysis_note=analysis_path
+    )

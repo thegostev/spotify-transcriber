@@ -177,7 +177,9 @@ def render_analysis_note(
     return "\n".join([*lines, "", body]) + "\n"
 
 
-def _frontmatter_lines(note: EpisodeNote, analysis_note: str | None = None) -> list[str]:
+def _frontmatter_lines(
+    note: EpisodeNote, analysis_note: str | None = None, analyzer: str | None = None
+) -> list[str]:
     """Render the note frontmatter, tags and cleanup status included."""
     ref = note.ref
     transcribed = note.transcript.transcribed_at
@@ -194,8 +196,10 @@ def _frontmatter_lines(note: EpisodeNote, analysis_note: str | None = None) -> l
         f"duration: {duration}",
         f"language: {_yaml_string(note.transcript.language)}",
         f"speech_model: {_yaml_string(note.transcript.model)}",
-        f"transcribed_at: {transcribed_text}",
     ]
+    if analyzer:
+        lines.append(f"analyzer: {_yaml_string(analyzer)}")
+    lines.append(f"transcribed_at: {transcribed_text}")
     if analysis_note:
         lines.append(f"analysis_note: {_yaml_string(_wikilink(analysis_note))}")
     if note.tags:
@@ -204,7 +208,9 @@ def _frontmatter_lines(note: EpisodeNote, analysis_note: str | None = None) -> l
     return lines
 
 
-def render_episode_note(note: EpisodeNote, *, analysis_note: str | None = None) -> str:
+def render_episode_note(
+    note: EpisodeNote, *, analysis_note: str | None = None, analyzer: str | None = None
+) -> str:
     """Render one episode note as Markdown: frontmatter, summary, transcript.
 
     Sections for summary and key points are written only when the model holds
@@ -213,11 +219,12 @@ def render_episode_note(note: EpisodeNote, *, analysis_note: str | None = None) 
     Args:
         note: Everything the note contains.
         analysis_note: File name of the analysis note to link, when there is one.
+        analyzer: Name of the analyzer that produced the transcript, when known.
 
     Returns:
         The complete Markdown document, ending in a newline.
     """
-    parts = ["\n".join(_frontmatter_lines(note, analysis_note)), ""]
+    parts = ["\n".join(_frontmatter_lines(note, analysis_note, analyzer)), ""]
     if note.summary:
         parts.extend(["## Summary", "", note.summary.strip(), ""])
     if note.key_points:

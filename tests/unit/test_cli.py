@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import datetime
 from pathlib import Path
-
-import pytest
 
 from podscribe.analyzer import AnalyzerResult
 from podscribe.config import Config
@@ -129,7 +127,6 @@ def test_add_episode_dry_run_resolves_without_download_or_write(tmp_path):
     assert client.downloads == []
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1046")
 def test_add_episode_writes_episode_and_analysis_notes(tmp_path):
     from podscribe.cli import add_episode
 
@@ -154,7 +151,6 @@ def test_add_episode_writes_episode_and_analysis_notes(tmp_path):
     assert "## TL;DR" in analysis
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1046")
 def test_add_episode_without_analysis_writes_one_note(tmp_path):
     from podscribe.cli import add_episode
 
