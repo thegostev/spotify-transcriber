@@ -9,6 +9,8 @@ from datetime import date, datetime
 from itertools import count
 from pathlib import Path
 
+import yaml
+
 from podscribe.models import EpisodeNote, EpisodeRef
 
 UNSAFE_CHARS = re.compile(r'[:\[\]#^|\\*"<>?]')
@@ -140,6 +142,30 @@ def _strip_analyzer_headers(text: str) -> str:
     return "".join(line for line in lines if not line.startswith(("CATEGORY:", "FILENAME:")))
 
 
+def _split_leading_frontmatter(text: str) -> tuple[dict[str, object], str]:
+    """Return a leading YAML block and the body after it.
+
+    Analyzers may emit their own ``---`` block (the Podcast mode does: title,
+    guest, host, topics). The note already has frontmatter, so the block is
+    promoted into it and removed from the body. Text without a valid block is
+    returned unchanged.
+    """
+    lines = text.splitlines(keepends=True)
+    if not lines or lines[0].strip() != FRONTMATTER_FENCE:
+        return {}, text
+    for index, line in enumerate(lines[1:], start=1):
+        if line.strip() != FRONTMATTER_FENCE:
+            continue
+        try:
+            data = yaml.safe_load("".join(lines[1:index]))
+        except yaml.YAMLError:
+            return {}, text
+        if isinstance(data, dict):
+            return data, "".join(lines[index + 1 :])
+        return {}, text
+    return {}, text
+
+
 def render_analysis_note(
     *,
     ref: EpisodeRef,
@@ -160,6 +186,7 @@ def render_analysis_note(
     Returns:
         The complete Markdown document, ending in a newline.
     """
+    metadata, body_text = _split_leading_frontmatter(analysis)
     published = ref.published_at.isoformat() if ref.published_at else "null"
     analyzed = _yaml_string(analyzed_at.isoformat(timespec="seconds")) if analyzed_at else "null"
     lines = [
@@ -170,10 +197,19 @@ def render_analysis_note(
         f"spotify_url: {_yaml_string(ref.spotify_url)}",
         f"analyzer: {_yaml_string(analyzer)}",
         f"analyzed_at: {analyzed}",
-        f"episode_note: {_yaml_string(_wikilink(episode_note))}",
-        FRONTMATTER_FENCE,
     ]
-    body = _strip_analyzer_headers(analysis).strip()
+    title = metadata.get("title")
+    if isinstance(title, str) and title.strip():
+        lines.append(f"analyzer_title: {_yaml_string(title.strip())}")
+    for field in ("guest", "host"):
+        value = metadata.get(field)
+        if isinstance(value, str) and value.strip():
+            lines.append(f"{field}: {_yaml_string(value.strip())}")
+    topics = metadata.get("topics")
+    if isinstance(topics, list) and topics:
+        lines.append(f"topics: {json.dumps([str(item) for item in topics], ensure_ascii=False)}")
+    lines.extend([f"episode_note: {_yaml_string(_wikilink(episode_note))}", FRONTMATTER_FENCE])
+    body = _strip_analyzer_headers(body_text).strip()
     return "\n".join([*lines, "", body]) + "\n"
 
 

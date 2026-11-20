@@ -2,8 +2,6 @@
 
 from datetime import date, datetime
 
-import pytest
-
 SPOTIFY_URL = "https://open.spotify.com/episode/abc"
 ANALYSIS = "## Themes\n\nTrust and repair."
 
@@ -116,7 +114,6 @@ def test_render_episode_note_omits_the_analysis_link_when_not_given():
     assert not any(line.startswith("analysis_note:") for line in head)
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1059")
 def test_render_analysis_note_promotes_the_analyzer_metadata_block():
     from podscribe.note import render_analysis_note
 
