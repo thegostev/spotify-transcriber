@@ -24,14 +24,12 @@ def write_note(path, spotify_url):
     path.write_text(f'---\nshow: "S"\nspotify_url: "{spotify_url}"\n---\n\nbody\n', encoding="utf-8")
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1052")
 def test_note_filename_uses_publish_date_and_title(tmp_path):
     from podscribe.note import note_filename
 
     assert note_filename(ref(), "The Show", output_dir=tmp_path) == "26-11-18 An Episode.md"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1052")
 def test_note_filename_strips_obsidian_unsafe_characters(tmp_path):
     from podscribe.note import note_filename
 
@@ -41,7 +39,6 @@ def test_note_filename_strips_obsidian_unsafe_characters(tmp_path):
     assert name == "26-11-18 A B C D E F G H I J K L.md"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1052")
 def test_note_filename_replaces_slashes_and_honours_today_without_date(tmp_path):
     from datetime import date as today_type
 
@@ -52,7 +49,6 @@ def test_note_filename_replaces_slashes_and_honours_today_without_date(tmp_path)
     assert name == f"{today_type.today():%y-%m-%d} AC-DC live.md"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1052")
 def test_note_filename_adds_show_when_taken_by_another_episode(tmp_path):
     from podscribe.note import note_filename
 
@@ -62,7 +58,6 @@ def test_note_filename_adds_show_when_taken_by_another_episode(tmp_path):
     assert note_filename(ref(), "The Show", output_dir=tmp_path) == "26-11-18 An Episode - The Show.md"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1052")
 def test_note_filename_signals_already_done_for_same_spotify_url(tmp_path):
     from podscribe.note import NoteExistsError, note_filename
 
@@ -75,7 +70,6 @@ def test_note_filename_signals_already_done_for_same_spotify_url(tmp_path):
     assert caught.value.path == target
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1052")
 def test_note_filename_sanitises_show_in_the_clash_name(tmp_path):
     from podscribe.note import note_filename
 
