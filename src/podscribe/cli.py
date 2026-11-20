@@ -11,6 +11,7 @@ from podscribe.analyzer import Analyzer, build_analyzer
 from podscribe.config import Config, load_config
 from podscribe.download import download_audio
 from podscribe.episode_page import parse_episode_page
+from podscribe.failure import failure_note_path, log_line, write_failure_note
 from podscribe.feed import match_feed_item
 from podscribe.http import HttpClient, HttpClientLike
 from podscribe.itunes import find_feed
@@ -25,11 +26,13 @@ class AddOutcome:
     """What one ``podscribe add`` run reached.
 
     Attributes:
-        status: planned, done, already_done, no_feed or unmatched.
+        status: planned, done, already_done, no_feed, unmatched or failed.
         ref: The episode link and the metadata read from its page.
         feed_url: The show's feed, when one was found.
         episode_note: Target or written episode note, None when there is none.
         analysis_note: Target or written analysis note, None when there is none.
+        reason: unmatched, download, analyzer or write; None on success.
+        failure_note: Written or would-be failure note, None when none was made.
     """
 
     status: str
@@ -37,6 +40,49 @@ class AddOutcome:
     feed_url: str | None = None
     episode_note: Path | None = None
     analysis_note: Path | None = None
+    reason: str | None = None
+    failure_note: Path | None = None
+
+
+def _record_failure(
+    status: str,
+    reason: str,
+    *,
+    ref: EpisodeRef,
+    feed_url: str | None,
+    config: Config,
+    occurred_at: datetime,
+    dry_run: bool,
+) -> AddOutcome:
+    """Write the failure note, or report its path during a dry run.
+
+    A failure note that cannot be written must not raise: the run is already
+    failing, so the note path degrades to None and stderr carries the reason.
+
+    Args:
+        status: no_feed, unmatched or failed; kept for the caller's output.
+        reason: unmatched, download, analyzer or write.
+        ref: The episode link and its metadata.
+        feed_url: The show's feed, when one was found.
+        config: Validated configuration; paths only.
+        occurred_at: When the failure was recorded.
+        dry_run: Report the would-be path without writing anything.
+
+    Returns:
+        The failure outcome.
+    """
+    directory = Path(config.paths["failure_notes_dir"])
+    note: Path | None = failure_note_path(ref, directory=directory)
+    if dry_run:
+        return AddOutcome(status, ref, feed_url=feed_url, reason=reason, failure_note=note)
+    try:
+        note = write_failure_note(
+            ref, reason, directory=directory, occurred_at=occurred_at, log_file=config.paths["log_file"]
+        )
+    except OSError as exc:
+        log_line(f"could not write failure note {note}: {exc}")
+        note = None
+    return AddOutcome(status, ref, feed_url=feed_url, reason=reason, failure_note=note)
 
 
 def add_episode(
@@ -66,12 +112,28 @@ def add_episode(
     ref = parse_episode_page(client.get_text(episode_url))
     feed_url = find_feed(ref.show, client, search_url=config.intake["itunes_search_url"])
     if feed_url is None:
-        return AddOutcome("no_feed", ref)
+        return _record_failure(
+            "no_feed",
+            "unmatched",
+            ref=ref,
+            feed_url=None,
+            config=config,
+            occurred_at=now or datetime.now(),
+            dry_run=dry_run,
+        )
     item = match_feed_item(
         client.get_text(feed_url), ref, tolerance_days=int(config.intake["match_window_days"])
     )
     if item is None:
-        return AddOutcome("unmatched", ref, feed_url=feed_url)
+        return _record_failure(
+            "unmatched",
+            "unmatched",
+            ref=ref,
+            feed_url=feed_url,
+            config=config,
+            occurred_at=now or datetime.now(),
+            dry_run=dry_run,
+        )
     output_dir = Path(config.paths["output_dir"])
     try:
         names = note_names(ref, ref.show, output_dir=output_dir)

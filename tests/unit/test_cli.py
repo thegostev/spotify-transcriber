@@ -275,7 +275,6 @@ class FailingAnalyzer(FakeAnalyzer):
         raise AnalyzerError("analyzer exploded")
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1051")
 def test_add_episode_unmatched_writes_failure_note_and_no_episode_note(tmp_path):
     from podscribe.cli import add_episode
 
@@ -295,7 +294,6 @@ def test_add_episode_unmatched_writes_failure_note_and_no_episode_note(tmp_path)
     assert list((tmp_path / "out").glob("*.md")) == []
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1051")
 def test_add_episode_without_a_feed_writes_an_unmatched_failure_note(tmp_path):
     from podscribe.cli import add_episode
 
@@ -367,7 +365,6 @@ def test_add_episode_write_error_writes_a_failure_note(tmp_path):
     assert "write" in outcome.failure_note.read_text(encoding="utf-8")
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1051")
 def test_add_episode_failure_note_includes_the_log_tail(tmp_path):
     from podscribe.cli import add_episode
 
@@ -384,7 +381,6 @@ def test_add_episode_failure_note_includes_the_log_tail(tmp_path):
     assert "boom" in outcome.failure_note.read_text(encoding="utf-8")
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1051")
 def test_add_episode_dry_run_unmatched_writes_nothing(tmp_path):
     from podscribe.cli import add_episode
 
@@ -403,7 +399,6 @@ def test_add_episode_dry_run_unmatched_writes_nothing(tmp_path):
     assert not (tmp_path / "failures").exists()
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1051")
 def test_add_episode_failure_note_write_error_degrades_to_stderr(tmp_path, capsys):
     from podscribe.cli import add_episode
 
