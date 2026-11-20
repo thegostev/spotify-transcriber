@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
+import pytest
+
 from podscribe.analyzer import AnalyzerResult
 from podscribe.config import Config
 from podscribe.models import EpisodeRef, Segment, Transcript
@@ -209,17 +211,58 @@ def _write_config(tmp_path: Path) -> Path:
     return path
 
 
-def test_main_dry_run_prints_the_target_path(tmp_path, capsys):
-    from podscribe.cli import main
+@pytest.mark.xfail(strict=True, reason="LAG-1050")
+def test_main_add_queues_the_link_without_building_the_analyzer(tmp_path, capsys, monkeypatch):
+    import podscribe.cli as cli
+    from podscribe.queue import list_jobs, open_store
 
-    exit_code = main(
-        ["add", "https://open.spotify.com/episode/abc123", "--dry-run", "--config", str(_write_config(tmp_path))],
-        client=FakeClient(),
-        analyzer=FakeAnalyzer(),
+    def explode(*args, **kwargs):
+        raise AssertionError("analyzer built for add")
+
+    monkeypatch.setattr(cli, "build_analyzer", explode)
+    exit_code = cli.main(
+        ["add", "https://open.spotify.com/episode/abc123", "--config", str(_write_config(tmp_path))]
     )
 
     assert exit_code == 0
-    assert "26-10-15 MCP, CLIs and agents.md" in capsys.readouterr().out
+    assert capsys.readouterr().out == "queued: https://open.spotify.com/episode/abc123\n"
+    assert list_jobs(open_store(str(tmp_path / "data")))[0].state == "queued"
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1050")
+def test_main_add_reports_an_already_done_link(tmp_path, capsys):
+    from podscribe.cli import main
+    from podscribe.queue import claim_next, enqueue, finish, open_store
+
+    store = open_store(str(tmp_path / "data"))
+    enqueue(store, "https://open.spotify.com/episode/abc123")
+    finish(store, claim_next(store), "done", note_path=tmp_path / "out" / "episode.md")
+
+    exit_code = main(
+        ["add", "https://open.spotify.com/episode/abc123", "--config", str(_write_config(tmp_path))]
+    )
+
+    assert exit_code == 0
+    assert capsys.readouterr().out == f"already done: {tmp_path / 'out' / 'episode.md'}\n"
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1050")
+def test_main_add_dry_run_writes_nothing(tmp_path, capsys):
+    from podscribe.cli import main
+
+    exit_code = main(
+        [
+            "add",
+            "https://open.spotify.com/episode/abc123",
+            "--dry-run",
+            "--config",
+            str(_write_config(tmp_path)),
+        ]
+    )
+
+    assert exit_code == 0
+    assert capsys.readouterr().out == "would queue: https://open.spotify.com/episode/abc123\n"
+    assert not (tmp_path / "data" / "queue.db").exists()
 
 
 def test_add_episode_fills_a_missing_transcribed_at(tmp_path):
