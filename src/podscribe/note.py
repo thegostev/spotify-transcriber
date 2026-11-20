@@ -44,8 +44,15 @@ def _date_prefix(published_at: date | None) -> str:
     return (published_at or date.today()).strftime("%y-%m-%d")
 
 
-def _safe_name(value: str) -> str:
-    """Strip Obsidian-unsafe characters and collapse whitespace."""
+def safe_name(value: str) -> str:
+    """Strip Obsidian-unsafe characters and collapse whitespace.
+
+    Args:
+        value: Any show or episode title.
+
+    Returns:
+        A file-name fragment that Obsidian accepts, ``Untitled`` when empty.
+    """
     cleaned = UNSAFE_CHARS.sub("", value).replace("/", "-")
     return WHITESPACE.sub(" ", cleaned).strip() or "Untitled"
 
@@ -92,14 +99,14 @@ def note_names(ref: EpisodeRef, show: str, *, output_dir: Path) -> NoteNames:
         NoteExistsError: A note for the same Spotify URL already exists.
     """
     prefix = _date_prefix(ref.published_at)
-    base = f"{prefix} {_safe_name(ref.episode_title)}.md"
+    base = f"{prefix} {safe_name(ref.episode_title)}.md"
     directory = Path(output_dir)
     target = directory / base
     if not target.exists():
         return NoteNames(base, _analysis_name(base))
     if _frontmatter_value(target, "spotify_url") == ref.spotify_url:
         raise NoteExistsError(target)
-    stem = f"{prefix} {_safe_name(ref.episode_title)} - {_safe_name(show)}"
+    stem = f"{prefix} {safe_name(ref.episode_title)} - {safe_name(show)}"
     for number in count(1):
         name = stem if number == 1 else f"{stem} {number}"
         path = directory / f"{name}.md"

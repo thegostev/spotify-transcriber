@@ -23,7 +23,6 @@ def unsafe_ref() -> EpisodeRef:
     )
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1051")
 def test_failure_note_name_is_deterministic_and_obsidian_safe():
     from podscribe.failure import failure_note_name
 
@@ -74,7 +73,6 @@ def test_render_failure_note_notes_a_missing_log_file():
     assert "No log file" in text
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1051")
 def test_read_log_tail_returns_the_last_twenty_lines(tmp_path):
     from podscribe.failure import read_log_tail
 
@@ -87,7 +85,6 @@ def test_read_log_tail_returns_the_last_twenty_lines(tmp_path):
     assert tail.splitlines() == [f"line {number}" for number in range(5, 25)]
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1051")
 def test_read_log_tail_returns_none_when_the_file_is_missing_or_empty(tmp_path):
     from podscribe.failure import read_log_tail
 
