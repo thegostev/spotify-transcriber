@@ -14,6 +14,23 @@ cp config.example.yaml config.yaml   # edit paths, models, Keychain references
 uv run pytest
 ```
 
+## Queue and service
+
+`podscribe add <episode link>` writes the link to a SQLite queue at `paths.data_dir/queue.db` and returns at once. A worker processes jobs one at a time, so intake never waits for an episode and Superwhisper only handles one file at a time.
+
+```sh
+uv run podscribe add https://open.spotify.com/episode/...   # queued: <url>
+uv run podscribe run             # poll and process forever
+uv run podscribe run --once      # drain the queued jobs and exit
+uv run podscribe status          # queued / running / done / unmatched / failed
+uv run podscribe install-service --dry-run   # print the plist and target path
+uv run podscribe install-service             # write ~/Library/LaunchAgents/com.podscribe.worker.plist
+```
+
+Adding the same link again is harmless: `add` prints `already done: <note path>`, `already queued` or `already running`.
+
+The worker logs every job start, end and failure to `paths.log_file` (default `~/.podscribe/podscribe.log`). The LaunchAgent starts the worker at login and restarts it after a crash; load it once with the `launchctl bootstrap` command that `install-service` prints. While a job runs and the meetings daemon holds `~/.superwhisper.lock`, `status` appends `waiting for Superwhisper`. podscribe never loads or unloads the service itself.
+
 ## Plug your own analyzer
 
 One config-selected component, the analyzer, turns downloaded audio into a transcript and an optional analysis. Pick a backend in `config.yaml`:
