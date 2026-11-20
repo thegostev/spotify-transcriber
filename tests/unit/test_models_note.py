@@ -1,9 +1,5 @@
 from datetime import date
 
-import pytest
-
-pytestmark = pytest.mark.xfail(strict=True, reason="LAG-1046")
-
 
 def test_segment_formats_timestamp_as_hh_mm_ss():
     from podscribe.models import Segment
