@@ -82,6 +82,29 @@ def test_command_analyzer_uses_optional_segments_and_drops_empty_analysis(tmp_pa
     assert result.analysis is None
 
 
+@pytest.mark.xfail(strict=True, reason="LAG-1046")
+def test_command_analyzer_marks_the_whole_text_fallback_as_untimed(tmp_path):
+    analyzer = _command(tmp_path, "import json; print(json.dumps({'transcript': 'Hello world.'}))\n")
+
+    result = analyzer.analyze(tmp_path / "episode.mp3", REF)
+
+    assert result.transcript.timed is False
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1046")
+def test_command_analyzer_keeps_explicit_timestamps(tmp_path):
+    analyzer = _command(
+        tmp_path,
+        "import json\n"
+        "print(json.dumps({'transcript': 'ignored', 'segments': ["
+        "{'start': 0, 'text': 'Hello.'}]}))\n",
+    )
+
+    result = analyzer.analyze(tmp_path / "episode.mp3", REF)
+
+    assert result.transcript.timed is True
+
+
 def test_command_analyzer_buckets_word_level_segments(tmp_path):
     analyzer = _command(
         tmp_path,
@@ -323,6 +346,22 @@ def test_superwhisper_analyzer_buckets_word_segments(tmp_path, monkeypatch):
     )
     assert result.analysis is None
     assert result.transcript.model == "superwhisper"
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1046")
+def test_superwhisper_analyzer_marks_the_whole_text_fallback_as_untimed(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from podscribe.analyzer import SuperwhisperAnalyzer
+
+    client = FakeSuperwhisperClient(
+        SimpleNamespace(transcript="hei", analysis=None, segments=(), mode_name=None)
+    )
+    monkeypatch.setitem(sys.modules, "superwhisper_client", client)
+
+    result = SuperwhisperAnalyzer(wf_path=tmp_path, mode_key="podcast").analyze(tmp_path / "a.mp3", REF)
+
+    assert result.transcript.timed is False
 
 
 def test_superwhisper_analyzer_uses_the_configured_language(tmp_path, monkeypatch):
