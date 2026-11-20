@@ -30,6 +30,7 @@ from podscribe.queue import DONE, QUEUED, RUNNING, Job, enqueue, list_jobs, open
 
 SUPERWHISPER_LOCK = Path("~/.superwhisper.lock")
 STATUS_TIME_FORMAT = "%H:%M"
+TEMP_SUFFIX = ".tmp"
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,6 +57,26 @@ class AddOutcome:
     reason: str | None = None
     failure_note: Path | None = None
     detail: str | None = None
+
+
+def _write_atomic(path: Path, text: str) -> None:
+    """Write ``text`` to ``path`` without ever leaving a partial note.
+
+    The text goes to a temporary file in the same directory and is then
+    renamed over ``path``, so a crash or a full disk leaves the old path
+    untouched instead of half-written.
+
+    Args:
+        path: Destination note.
+        text: Complete Markdown document.
+    """
+    temporary = path.with_name(f".{path.name}{TEMP_SUFFIX}")
+    try:
+        temporary.write_text(text, encoding="utf-8")
+        os.replace(temporary, path)
+    except OSError:
+        temporary.unlink(missing_ok=True)
+        raise
 
 
 def _record_failure(
@@ -230,9 +251,9 @@ def add_episode(
         )
     try:
         output_dir.mkdir(parents=True, exist_ok=True)
-        episode_path.write_text(episode_text, encoding="utf-8")
         if analysis_text is not None:
-            analysis_path.write_text(analysis_text, encoding="utf-8")
+            _write_atomic(analysis_path, analysis_text)
+        _write_atomic(episode_path, episode_text)
     except OSError as exc:
         log_line(f"could not write notes for {ref.episode_title}: {exc}")
         return _record_failure(

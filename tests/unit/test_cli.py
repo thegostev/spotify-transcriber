@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-import pytest
-
 from podscribe.analyzer import AnalyzerResult
 from podscribe.config import Config
 from podscribe.models import EpisodeRef, Segment, Transcript
@@ -155,7 +153,6 @@ def test_add_episode_writes_episode_and_analysis_notes(tmp_path):
     assert "## TL;DR" in analysis
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1046")
 def test_add_episode_analysis_write_failure_leaves_no_episode_note(tmp_path, monkeypatch):
     import os
 
