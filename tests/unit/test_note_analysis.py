@@ -2,6 +2,8 @@
 
 from datetime import date, datetime
 
+import pytest
+
 SPOTIFY_URL = "https://open.spotify.com/episode/abc"
 ANALYSIS = "## Themes\n\nTrust and repair."
 
@@ -112,3 +114,31 @@ def test_render_episode_note_omits_the_analysis_link_when_not_given():
     head, _ = split_frontmatter(render_episode_note(make_note()))
 
     assert not any(line.startswith("analysis_note:") for line in head)
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1059")
+def test_render_analysis_note_promotes_the_analyzer_metadata_block():
+    from podscribe.note import render_analysis_note
+
+    analysis = (
+        "---\n"
+        'title: "MCP: The Plumbing for AI Agents"\n'
+        'guest: "Dan Delimarsky"\n'
+        "topics: [mcp, ai-agents]\n"
+        "---\n"
+        "\n## TL;DR\n- One idea.\n"
+    )
+
+    text = render_analysis_note(
+        ref=ref(),
+        analyzer="superwhisper",
+        analysis=analysis,
+        analyzed_at=datetime(2026, 11, 20, 22, 0, 0),
+        episode_note="26-11-18 An Episode.md",
+    )
+
+    assert 'analyzer_title: "MCP: The Plumbing for AI Agents"' in text
+    assert 'guest: "Dan Delimarsky"' in text
+    assert 'topics: ["mcp", "ai-agents"]' in text
+    assert text.count("---") == 2
+    assert text.endswith("## TL;DR\n- One idea.\n")
