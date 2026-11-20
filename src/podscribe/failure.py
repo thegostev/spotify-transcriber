@@ -8,8 +8,10 @@ analyzer or write.
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from collections import deque
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
@@ -18,6 +20,8 @@ from podscribe.note import safe_name
 
 FAILURE_PREFIX = "_Failed - "
 LOG_TAIL_LINES = 20
+NOTIFY_TIMEOUT_SECONDS = 10.0
+Notifier = Callable[[str, str], None]
 
 
 def failure_note_name(ref: EpisodeRef) -> str:
@@ -189,3 +193,41 @@ def clear_failure_note(ref: EpisodeRef, *, directory: Path | str) -> Path | None
         log_line(f"could not remove failure note {path}: {exc}")
         return None
     return path
+
+
+def _applescript_string(value: str) -> str:
+    """Quote a value as an AppleScript string literal."""
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ").replace("\r", " ")
+    return f'"{escaped}"'
+
+
+def notify_macos(
+    title: str,
+    message: str,
+    *,
+    runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+) -> None:
+    """Show a macOS notification through ``osascript``.
+
+    A missing ``osascript``, a timeout or a non-zero exit is logged and
+    swallowed: a failed notification must not break the job.
+
+    Args:
+        title: Notification title, usually the failure reason.
+        message: Notification body, usually show and episode title.
+        runner: The subprocess runner, injected by tests.
+    """
+    script = f"display notification {_applescript_string(message)} with title {_applescript_string(title)}"
+    try:
+        completed = runner(
+            ["osascript", "-e", script],
+            capture_output=True,
+            text=True,
+            timeout=NOTIFY_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        log_line(f"macOS notification failed: {exc}")
+        return
+    if completed.returncode != 0:
+        log_line(f"macOS notification failed: osascript exit {completed.returncode}")

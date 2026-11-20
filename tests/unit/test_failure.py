@@ -132,7 +132,6 @@ def test_clear_failure_note_tolerates_a_missing_directory(tmp_path):
     assert clear_failure_note(unsafe_ref(), directory=tmp_path / "missing") is None
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1051")
 def test_notify_macos_runs_osascript_with_a_timeout():
     import subprocess
 
@@ -153,7 +152,6 @@ def test_notify_macos_runs_osascript_with_a_timeout():
     assert kwargs["timeout"] > 0
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1051")
 def test_notify_macos_swallows_runner_errors(capsys):
     from podscribe.failure import notify_macos
 
