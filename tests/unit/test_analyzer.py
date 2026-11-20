@@ -113,7 +113,6 @@ def _write_module(tmp_path: Path, name: str, body: str, monkeypatch) -> None:
     monkeypatch.syspath_prepend(str(tmp_path))
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1058")
 def test_module_analyzer_normalises_a_text_pair(tmp_path, monkeypatch):
     from podscribe.analyzer import ModuleAnalyzer
 
@@ -134,7 +133,6 @@ def test_module_analyzer_normalises_a_text_pair(tmp_path, monkeypatch):
     assert result.analyzer == "module:fake_pair_analyzer"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1058")
 def test_module_analyzer_accepts_an_analyzer_result(tmp_path, monkeypatch):
     from podscribe.analyzer import ModuleAnalyzer
 
@@ -159,7 +157,6 @@ def test_module_analyzer_accepts_an_analyzer_result(tmp_path, monkeypatch):
     assert result.analyzer == "module:fake_result_analyzer"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1058")
 @pytest.mark.parametrize("path", ["no_colon", ":Class", "fake_pair_analyzer:", "missing_module_xyz:Class"])
 def test_module_analyzer_rejects_invalid_paths(tmp_path, monkeypatch, path):
     from podscribe.analyzer import AnalyzerError, ModuleAnalyzer
@@ -170,7 +167,6 @@ def test_module_analyzer_rejects_invalid_paths(tmp_path, monkeypatch, path):
         ModuleAnalyzer(path=path).analyze(tmp_path / "a.mp3", REF)
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1058")
 def test_build_analyzer_dispatches_on_the_backend():
     from podscribe.analyzer import CommandAnalyzer, ModuleAnalyzer, build_analyzer
 
@@ -188,7 +184,6 @@ def test_build_analyzer_dispatches_on_the_backend():
     assert module.path == "pkg.mod:Class"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1058")
 def test_build_analyzer_rejects_an_unknown_backend():
     from podscribe.analyzer import build_analyzer
     from podscribe.config import ConfigError

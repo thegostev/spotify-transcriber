@@ -6,12 +6,15 @@ here, never on a backend's own result objects.
 
 from __future__ import annotations
 
+import importlib
 import json
 import subprocess
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
+from podscribe.config import ConfigError
 from podscribe.models import EpisodeRef, Segment, Transcript
 
 DEFAULT_TIMEOUT_SECONDS = 3600.0
@@ -109,3 +112,76 @@ class CommandAnalyzer:
         analysis_text = analysis.strip() if isinstance(analysis, str) and analysis.strip() else None
         transcript = Transcript(segments=segments, language=self.language, model="command")
         return AnalyzerResult(transcript=transcript, analysis=analysis_text, analyzer="command")
+
+
+def _normalise_module_result(raw: object, name: str, language: str) -> AnalyzerResult:
+    """Turn a module backend's return value into an AnalyzerResult."""
+    if isinstance(raw, AnalyzerResult):
+        return AnalyzerResult(transcript=raw.transcript, analysis=raw.analysis, analyzer=f"module:{name}")
+    if isinstance(raw, (tuple, list)) and len(raw) == 2:
+        text, analysis = raw
+        if isinstance(text, str) and text.strip():
+            analysis_text = analysis.strip() if isinstance(analysis, str) and analysis.strip() else None
+            transcript = Transcript(segments=single_segment(text), language=language, model=name)
+            return AnalyzerResult(transcript=transcript, analysis=analysis_text, analyzer=f"module:{name}")
+    raise AnalyzerError(f"analyzer module {name} returned neither AnalyzerResult nor (text, analysis)")
+
+
+@dataclass(frozen=True, slots=True)
+class ModuleAnalyzer:
+    """Load ``package.module:Class`` and call its ``analyze(audio, ref)``.
+
+    Attributes:
+        path: Import path with a class name, e.g. ``my_package.mod:Analyzer``.
+        language: Language code used when the module returns a bare text pair.
+    """
+
+    path: str
+    language: str = "en"
+
+    def analyze(self, audio: Path, ref: EpisodeRef) -> AnalyzerResult:
+        """Load the configured class and normalise whatever it returns.
+
+        Raises:
+            AnalyzerError: The path is invalid, import fails or the result
+                is neither an AnalyzerResult nor a (text, analysis) pair.
+        """
+        module_name, _, class_name = self.path.partition(":")
+        if not module_name or not class_name:
+            raise AnalyzerError(f"analyzer module path must be package.module:Class, got {self.path!r}")
+        try:
+            backend = getattr(importlib.import_module(module_name), class_name)()
+            raw = backend.analyze(audio, ref)
+        except AnalyzerError:
+            raise
+        except Exception as exc:
+            raise AnalyzerError(f"analyzer module {self.path} failed: {exc}") from exc
+        return _normalise_module_result(raw, module_name, self.language)
+
+
+def build_analyzer(section: Mapping[str, Any], *, language: str = "en") -> Analyzer:
+    """Build the backend selected by ``analyzer.backend``.
+
+    Args:
+        section: The validated ``analyzer`` config section.
+        language: Language code for backends that do not report one.
+
+    Raises:
+        ConfigError: The backend is unknown or its settings are missing.
+    """
+    backend = section.get("backend")
+    options = section.get(backend) if isinstance(backend, str) else None
+    if not isinstance(options, Mapping):
+        raise ConfigError(f"analyzer backend {backend!r} has no settings section")
+    if backend == "command":
+        argv = options.get("argv")
+        if not isinstance(argv, list) or not argv:
+            raise ConfigError("analyzer.command.argv must be a non-empty list")
+        timeout = float(options.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS))
+        return CommandAnalyzer(argv=tuple(str(part) for part in argv), timeout_seconds=timeout, language=language)
+    if backend == "module":
+        path = options.get("path")
+        if not isinstance(path, str) or not path:
+            raise ConfigError("analyzer.module.path must be package.module:Class")
+        return ModuleAnalyzer(path=path, language=language)
+    raise ConfigError(f"unknown analyzer backend {backend!r}; expected command, module or superwhisper")
