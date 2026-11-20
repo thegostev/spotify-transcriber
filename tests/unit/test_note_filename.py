@@ -77,3 +77,28 @@ def test_note_filename_sanitises_show_in_the_clash_name(tmp_path):
     write_note(target, "https://open.spotify.com/episode/other")
 
     assert note_filename(ref(), "The: Show", output_dir=tmp_path) == "26-11-18 An Episode - The Show.md"
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1052")
+def test_note_filename_numbers_when_the_show_name_is_also_taken(tmp_path):
+    from podscribe.note import note_filename
+
+    write_note(tmp_path / "26-11-18 An Episode.md", "https://open.spotify.com/episode/other")
+    write_note(tmp_path / "26-11-18 An Episode - The Show.md", "https://open.spotify.com/episode/third")
+
+    assert note_filename(ref(), "The Show", output_dir=tmp_path) == "26-11-18 An Episode - The Show 2.md"
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1052")
+def test_note_filename_signals_already_done_for_a_numbered_name(tmp_path):
+    from podscribe.note import NoteExistsError, note_filename
+
+    write_note(tmp_path / "26-11-18 An Episode.md", "https://open.spotify.com/episode/other")
+    write_note(tmp_path / "26-11-18 An Episode - The Show.md", "https://open.spotify.com/episode/third")
+    numbered = tmp_path / "26-11-18 An Episode - The Show 2.md"
+    write_note(numbered, SPOTIFY_URL)
+
+    with pytest.raises(NoteExistsError) as caught:
+        note_filename(ref(), "The Show", output_dir=tmp_path)
+
+    assert caught.value.path == numbered
