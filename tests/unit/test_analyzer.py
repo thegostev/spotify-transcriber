@@ -106,3 +106,92 @@ def test_command_analyzer_times_out(tmp_path):
 
     with pytest.raises(AnalyzerError, match="timed out|failed"):
         analyzer.analyze(tmp_path / "episode.mp3", REF)
+
+
+def _write_module(tmp_path: Path, name: str, body: str, monkeypatch) -> None:
+    (tmp_path / f"{name}.py").write_text(body, encoding="utf-8")
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1058")
+def test_module_analyzer_normalises_a_text_pair(tmp_path, monkeypatch):
+    from podscribe.analyzer import ModuleAnalyzer
+
+    _write_module(
+        tmp_path,
+        "fake_pair_analyzer",
+        "class MyAnalyzer:\n"
+        "    def analyze(self, audio, ref):\n"
+        "        return (f'{ref.episode_title} text', '  pair notes  ')\n",
+        monkeypatch,
+    )
+
+    result = ModuleAnalyzer(path="fake_pair_analyzer:MyAnalyzer").analyze(tmp_path / "a.mp3", REF)
+
+    assert result.transcript.segments == (Segment(0.0, "Episode text"),)
+    assert result.transcript.language == "en"
+    assert result.analysis == "pair notes"
+    assert result.analyzer == "module:fake_pair_analyzer"
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1058")
+def test_module_analyzer_accepts_an_analyzer_result(tmp_path, monkeypatch):
+    from podscribe.analyzer import ModuleAnalyzer
+
+    _write_module(
+        tmp_path,
+        "fake_result_analyzer",
+        "from podscribe.analyzer import AnalyzerResult\n"
+        "from podscribe.models import Segment, Transcript\n"
+        "class MyAnalyzer:\n"
+        "    def analyze(self, audio, ref):\n"
+        "        transcript = Transcript((Segment(7.0, 'done'),), 'en', 'custom')\n"
+        "        return AnalyzerResult(transcript, None, 'custom')\n",
+        monkeypatch,
+    )
+
+    result = ModuleAnalyzer(path="fake_result_analyzer:MyAnalyzer", language="no").analyze(
+        tmp_path / "a.mp3", REF
+    )
+
+    assert result.transcript.segments == (Segment(7.0, "done"),)
+    assert result.analysis is None
+    assert result.analyzer == "module:fake_result_analyzer"
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1058")
+@pytest.mark.parametrize("path", ["no_colon", ":Class", "fake_pair_analyzer:", "missing_module_xyz:Class"])
+def test_module_analyzer_rejects_invalid_paths(tmp_path, monkeypatch, path):
+    from podscribe.analyzer import AnalyzerError, ModuleAnalyzer
+
+    _write_module(tmp_path, "fake_pair_analyzer", "class MyAnalyzer: pass\n", monkeypatch)
+
+    with pytest.raises(AnalyzerError):
+        ModuleAnalyzer(path=path).analyze(tmp_path / "a.mp3", REF)
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1058")
+def test_build_analyzer_dispatches_on_the_backend():
+    from podscribe.analyzer import CommandAnalyzer, ModuleAnalyzer, build_analyzer
+
+    command = build_analyzer(
+        {"backend": "command", "command": {"argv": ["tool", "{audio}"], "timeout_seconds": 5}},
+        language="no",
+    )
+    module = build_analyzer({"backend": "module", "module": {"path": "pkg.mod:Class"}})
+
+    assert isinstance(command, CommandAnalyzer)
+    assert command.argv == ("tool", "{audio}")
+    assert command.timeout_seconds == 5.0
+    assert command.language == "no"
+    assert isinstance(module, ModuleAnalyzer)
+    assert module.path == "pkg.mod:Class"
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1058")
+def test_build_analyzer_rejects_an_unknown_backend():
+    from podscribe.analyzer import build_analyzer
+    from podscribe.config import ConfigError
+
+    with pytest.raises(ConfigError, match="backend"):
+        build_analyzer({"backend": "nope", "nope": {}})
