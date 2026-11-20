@@ -228,3 +228,135 @@ def test_bucket_words_accepts_objects_with_start_end_and_text():
         Segment(0.0, "Hello, world."),
     )
     assert bucket_words([]) == ()
+
+
+class FakeSuperwhisperClient:
+    """Stand-in for lane B's superwhisper_client module."""
+
+    def __init__(self, result=None, error: Exception | None = None) -> None:
+        self.result = result
+        self.error = error
+        self.call: dict[str, object] = {}
+
+    def analyze_file(self, audio, *, mode_key, timeout, contract_check):
+        self.call = {"audio": audio, "mode_key": mode_key, "timeout": timeout, "contract_check": contract_check}
+        if self.error is not None:
+            raise self.error
+        return self.result
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1058")
+def test_superwhisper_analyzer_maps_one_pass_results(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from podscribe.analyzer import SuperwhisperAnalyzer
+
+    client = FakeSuperwhisperClient(
+        SimpleNamespace(transcript=" Hello there. ", analysis=" Clean notes ", segments=(), mode_name="podcast")
+    )
+    monkeypatch.setitem(sys.modules, "superwhisper_client", client)
+    audio = tmp_path / "episode.mp3"
+
+    result = SuperwhisperAnalyzer(wf_path=tmp_path, mode_key="podcast", timeout_seconds=600).analyze(audio, REF)
+
+    assert result.transcript == Transcript((Segment(0.0, "Hello there."),), "en", "podcast")
+    assert result.analysis == "Clean notes"
+    assert result.analyzer == "superwhisper"
+    assert client.call == {
+        "audio": str(audio),
+        "mode_key": "podcast",
+        "timeout": 600,
+        "contract_check": None,
+    }
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1058")
+def test_superwhisper_analyzer_buckets_word_segments(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from podscribe.analyzer import SuperwhisperAnalyzer
+
+    words = [SimpleNamespace(start=float(i), end=float(i + 1), text=f"w{i}") for i in range(25)]
+    words[19] = SimpleNamespace(start=19.0, end=20.0, text="w19.")
+    client = FakeSuperwhisperClient(
+        SimpleNamespace(transcript="ignored", analysis=None, segments=tuple(words), mode_name=None)
+    )
+    monkeypatch.setitem(sys.modules, "superwhisper_client", client)
+
+    result = SuperwhisperAnalyzer(wf_path=tmp_path, mode_key="podcast").analyze(tmp_path / "a.mp3", REF)
+
+    assert result.transcript.segments == (
+        Segment(0.0, " ".join([*(f"w{i}" for i in range(19)), "w19."])),
+        Segment(20.0, " ".join(f"w{i}" for i in range(20, 25))),
+    )
+    assert result.analysis is None
+    assert result.transcript.model == "superwhisper"
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1058")
+def test_superwhisper_analyzer_uses_the_configured_language(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from podscribe.analyzer import SuperwhisperAnalyzer
+
+    client = FakeSuperwhisperClient(
+        SimpleNamespace(transcript="hei", analysis="  ", segments=(), mode_name=None)
+    )
+    monkeypatch.setitem(sys.modules, "superwhisper_client", client)
+
+    result = SuperwhisperAnalyzer(wf_path=tmp_path, mode_key="podcast", language="no").analyze(
+        tmp_path / "a.mp3", REF
+    )
+
+    assert result.transcript.language == "no"
+    assert result.transcript.segments == (Segment(0.0, "hei"),)
+    assert result.analysis is None
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1058")
+def test_superwhisper_analyzer_wraps_client_failures(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from podscribe.analyzer import AnalyzerError, SuperwhisperAnalyzer
+
+    analyzer = SuperwhisperAnalyzer(wf_path=tmp_path, mode_key="podcast")
+    monkeypatch.setitem(
+        sys.modules, "superwhisper_client", FakeSuperwhisperClient(error=RuntimeError("superwhisper busy"))
+    )
+    with pytest.raises(AnalyzerError, match="superwhisper busy"):
+        analyzer.analyze(tmp_path / "a.mp3", REF)
+
+    monkeypatch.setitem(
+        sys.modules,
+        "superwhisper_client",
+        FakeSuperwhisperClient(SimpleNamespace(transcript=" ", analysis=None, segments=(), mode_name=None)),
+    )
+    with pytest.raises(AnalyzerError, match="transcript"):
+        analyzer.analyze(tmp_path / "a.mp3", REF)
+
+
+def test_importing_the_analyzer_does_not_import_superwhisper_client(monkeypatch):
+    import podscribe.analyzer
+
+    monkeypatch.delitem(sys.modules, "superwhisper_client", raising=False)
+    assert "superwhisper_client" not in sys.modules
+    assert podscribe.analyzer.Analyzer is not None
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1058")
+def test_build_analyzer_builds_the_superwhisper_backend():
+    from podscribe.analyzer import SuperwhisperAnalyzer, build_analyzer
+
+    analyzer = build_analyzer(
+        {
+            "backend": "superwhisper",
+            "superwhisper": {"wf_path": "~/wf", "mode_key": "podcast", "timeout_seconds": 60},
+        },
+        language="no",
+    )
+
+    assert isinstance(analyzer, SuperwhisperAnalyzer)
+    assert analyzer.wf_path == Path("~/wf").expanduser()
+    assert analyzer.mode_key == "podcast"
+    assert analyzer.timeout_seconds == 60.0
+    assert analyzer.language == "no"
