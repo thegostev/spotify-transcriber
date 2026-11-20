@@ -56,7 +56,6 @@ def test_note_names_numbers_both_names_together(tmp_path):
     assert names.analysis == "26-11-18 An Episode - The Show 2 - Analysis.md"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1052")
 def test_note_names_skips_a_candidate_whose_analysis_belongs_to_another_episode(tmp_path):
     from podscribe.note import note_names
 

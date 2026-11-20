@@ -82,10 +82,13 @@ def _analysis_name(episode_name: str) -> str:
 def note_names(ref: EpisodeRef, show: str, *, output_dir: Path) -> NoteNames:
     """Return the episode and analysis note names, avoiding silent overwrites.
 
-    The date-and-title name wins; when another episode holds it, the show
-    name is appended, and when that is taken too the name is numbered. The
+    The date-and-title pair wins; when another episode holds it, the show
+    name is appended, and when that is taken too the pair is numbered. The
     analysis name is derived from the final episode stem, so both names
-    carry the same suffix.
+    carry the same suffix. A pair is skipped when its episode note belongs
+    to another link, or when only its analysis note exists for another link.
+    An analysis note for the same link is reused: it is a leftover from a run
+    whose episode note was never written.
 
     Args:
         ref: The episode link and its metadata.
@@ -99,21 +102,26 @@ def note_names(ref: EpisodeRef, show: str, *, output_dir: Path) -> NoteNames:
         NoteExistsError: A note for the same Spotify URL already exists.
     """
     prefix = _date_prefix(ref.published_at)
-    base = f"{prefix} {safe_name(ref.episode_title)}.md"
+    title = safe_name(ref.episode_title)
+    base = f"{prefix} {title}.md"
+    stem = f"{prefix} {title} - {safe_name(show)}"
     directory = Path(output_dir)
-    target = directory / base
-    if not target.exists():
-        return NoteNames(base, _analysis_name(base))
-    if _frontmatter_value(target, "spotify_url") == ref.spotify_url:
-        raise NoteExistsError(target)
-    stem = f"{prefix} {safe_name(ref.episode_title)} - {safe_name(show)}"
-    for number in count(1):
-        name = stem if number == 1 else f"{stem} {number}"
-        path = directory / f"{name}.md"
-        if not path.exists():
-            return NoteNames(path.name, _analysis_name(path.name))
-        if _frontmatter_value(path, "spotify_url") == ref.spotify_url:
-            raise NoteExistsError(path)
+    for number in count():
+        if number == 0:
+            name = base
+        elif number == 1:
+            name = f"{stem}.md"
+        else:
+            name = f"{stem} {number}.md"
+        episode = directory / name
+        analysis = directory / _analysis_name(name)
+        if episode.exists():
+            if _frontmatter_value(episode, "spotify_url") == ref.spotify_url:
+                raise NoteExistsError(episode)
+            continue
+        if analysis.exists() and _frontmatter_value(analysis, "spotify_url") != ref.spotify_url:
+            continue
+        return NoteNames(name, analysis.name)
 
 
 def note_filename(ref: EpisodeRef, show: str, *, output_dir: Path) -> str:
