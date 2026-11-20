@@ -6,10 +6,7 @@ import plistlib
 import sys
 from pathlib import Path
 
-import pytest
 
-
-@pytest.mark.xfail(strict=True, reason="LAG-1050")
 def test_render_plist_describes_the_worker(tmp_path, config_factory, monkeypatch):
     from podscribe.service import render_plist
 
@@ -30,7 +27,6 @@ def test_render_plist_describes_the_worker(tmp_path, config_factory, monkeypatch
     assert plist["StandardErrorPath"] == plist["StandardOutPath"]
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1050")
 def test_install_service_dry_run_writes_nothing(tmp_path, config_factory):
     from podscribe.service import install_service
 
@@ -48,7 +44,6 @@ def test_install_service_dry_run_writes_nothing(tmp_path, config_factory):
     assert not target.exists()
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1050")
 def test_install_service_writes_the_plist(tmp_path, config_factory):
     from podscribe.service import install_service
 
