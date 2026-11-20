@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
+import pytest
+
 from podscribe.analyzer import AnalyzerResult
 from podscribe.config import Config
 from podscribe.models import EpisodeRef, Segment, Transcript
@@ -83,7 +85,7 @@ class FakeAnalyzer:
         return AnalyzerResult(transcript=transcript, analysis="## TL;DR\n- One idea.", analyzer="command")
 
 
-def make_config(tmp_path: Path, *, output: Path | None = None) -> Config:
+def make_config(tmp_path: Path, *, output: Path | None = None, macos: bool = False) -> Config:
     """Build a Config with temp paths, no real filesystem or network."""
     output_dir = output or tmp_path / "out"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -102,7 +104,7 @@ def make_config(tmp_path: Path, *, output: Path | None = None) -> Config:
         analyzer={"backend": "command", "command": {"argv": ["fake"]}},
         speech={},
         llm={},
-        notifications={"macos": False},
+        notifications={"macos": macos},
         remote={"transport": "rex", "rex_host": "mini", "rex_session": "p", "ssh_target": "h@m"},
         source=tmp_path / "config.yaml",
     )
@@ -241,3 +243,179 @@ def test_add_episode_fills_a_missing_transcribed_at(tmp_path):
     )
 
     assert 'transcribed_at: "2026-11-20T23:00:00"' in outcome.episode_note.read_text(encoding="utf-8")
+
+
+class WrongTitleClient(FakeClient):
+    """Serve a feed whose item title does not match the episode."""
+
+    def get_text(self, url: str) -> str:
+        return super().get_text(url).replace("MCP, CLIs and agents</title>", "Another episode</title>")
+
+
+class NoFeedClient(FakeClient):
+    """Serve an iTunes search without a result."""
+
+    def get_json(self, url: str):
+        return {"results": []}
+
+
+class FailingDownloadClient(FakeClient):
+    """Fail while writing the audio file."""
+
+    def download(self, url: str, destination: Path) -> Path:
+        raise OSError("disk full")
+
+
+class FailingAnalyzer(FakeAnalyzer):
+    """Fail while analyzing the audio."""
+
+    def analyze(self, audio: Path, ref: EpisodeRef) -> AnalyzerResult:
+        from podscribe.analyzer import AnalyzerError
+
+        raise AnalyzerError("analyzer exploded")
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1051")
+def test_add_episode_unmatched_writes_failure_note_and_no_episode_note(tmp_path):
+    from podscribe.cli import add_episode
+
+    outcome = add_episode(
+        "https://open.spotify.com/episode/abc123",
+        make_config(tmp_path),
+        client=WrongTitleClient(),
+        analyzer=FakeAnalyzer(),
+    )
+
+    assert outcome.status == "unmatched"
+    assert outcome.reason == "unmatched"
+    assert outcome.episode_note is None
+    assert outcome.failure_note is not None
+    assert outcome.failure_note.name == "_Failed - MCP, CLIs and agents.md"
+    assert "unmatched" in outcome.failure_note.read_text(encoding="utf-8")
+    assert list((tmp_path / "out").glob("*.md")) == []
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1051")
+def test_add_episode_without_a_feed_writes_an_unmatched_failure_note(tmp_path):
+    from podscribe.cli import add_episode
+
+    outcome = add_episode(
+        "https://open.spotify.com/episode/abc123",
+        make_config(tmp_path),
+        client=NoFeedClient(),
+        analyzer=FakeAnalyzer(),
+    )
+
+    assert outcome.status == "no_feed"
+    assert outcome.reason == "unmatched"
+    assert outcome.failure_note is not None
+    assert outcome.failure_note.exists()
+    assert outcome.episode_note is None
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1051")
+def test_add_episode_download_error_writes_a_failure_note(tmp_path):
+    from podscribe.cli import add_episode
+
+    outcome = add_episode(
+        "https://open.spotify.com/episode/abc123",
+        make_config(tmp_path),
+        client=FailingDownloadClient(),
+        analyzer=FakeAnalyzer(),
+    )
+
+    assert outcome.status == "failed"
+    assert outcome.reason == "download"
+    assert outcome.failure_note is not None
+    assert "download" in outcome.failure_note.read_text(encoding="utf-8")
+    assert list((tmp_path / "out").glob("*.md")) == []
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1051")
+def test_add_episode_analyzer_error_writes_a_failure_note(tmp_path):
+    from podscribe.cli import add_episode
+
+    outcome = add_episode(
+        "https://open.spotify.com/episode/abc123",
+        make_config(tmp_path),
+        client=FakeClient(),
+        analyzer=FailingAnalyzer(),
+    )
+
+    assert outcome.status == "failed"
+    assert outcome.reason == "analyzer"
+    assert outcome.failure_note is not None
+    assert "analyzer" in outcome.failure_note.read_text(encoding="utf-8")
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1051")
+def test_add_episode_write_error_writes_a_failure_note(tmp_path):
+    from podscribe.cli import add_episode
+
+    config = make_config(tmp_path)
+    output = Path(config.paths["output_dir"])
+    output.rmdir()
+    output.write_text("not a directory", encoding="utf-8")
+
+    outcome = add_episode(
+        "https://open.spotify.com/episode/abc123", config, client=FakeClient(), analyzer=FakeAnalyzer()
+    )
+
+    assert outcome.status == "failed"
+    assert outcome.reason == "write"
+    assert outcome.failure_note is not None
+    assert "write" in outcome.failure_note.read_text(encoding="utf-8")
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1051")
+def test_add_episode_failure_note_includes_the_log_tail(tmp_path):
+    from podscribe.cli import add_episode
+
+    config = make_config(tmp_path)
+    log = Path(config.paths["log_file"])
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text("starting\nboom\n", encoding="utf-8")
+
+    outcome = add_episode(
+        "https://open.spotify.com/episode/abc123", config, client=WrongTitleClient(), analyzer=FakeAnalyzer()
+    )
+
+    assert outcome.failure_note is not None
+    assert "boom" in outcome.failure_note.read_text(encoding="utf-8")
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1051")
+def test_add_episode_dry_run_unmatched_writes_nothing(tmp_path):
+    from podscribe.cli import add_episode
+
+    outcome = add_episode(
+        "https://open.spotify.com/episode/abc123",
+        make_config(tmp_path, macos=True),
+        client=WrongTitleClient(),
+        analyzer=FakeAnalyzer(),
+        dry_run=True,
+    )
+
+    assert outcome.status == "unmatched"
+    assert outcome.failure_note is not None
+    assert outcome.failure_note.name == "_Failed - MCP, CLIs and agents.md"
+    assert not outcome.failure_note.exists()
+    assert not (tmp_path / "failures").exists()
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1051")
+def test_add_episode_failure_note_write_error_degrades_to_stderr(tmp_path, capsys):
+    from podscribe.cli import add_episode
+
+    config = make_config(tmp_path)
+    Path(config.paths["failure_notes_dir"]).write_text("not a directory", encoding="utf-8")
+
+    outcome = add_episode(
+        "https://open.spotify.com/episode/abc123", config, client=WrongTitleClient(), analyzer=FakeAnalyzer()
+    )
+
+    assert outcome.status == "unmatched"
+    assert outcome.reason == "unmatched"
+    assert outcome.failure_note is None
+    assert "could not write failure note" in capsys.readouterr().err
+
