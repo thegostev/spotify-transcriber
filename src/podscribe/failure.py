@@ -8,6 +8,7 @@ analyzer or write.
 from __future__ import annotations
 
 import json
+import sys
 from collections import deque
 from datetime import datetime
 from pathlib import Path
@@ -119,3 +120,72 @@ def render_failure_note(
     else:
         lines.extend(["```text", log_tail.rstrip("\n"), "```"])
     return "\n".join(lines) + "\n"
+
+
+def log_line(message: str) -> None:
+    """Write one timestamped line to stderr."""
+    stamp = datetime.now().isoformat(timespec="seconds")
+    print(f"[{stamp}] {message}", file=sys.stderr)
+
+
+def write_failure_note(
+    ref: EpisodeRef,
+    reason: str,
+    *,
+    directory: Path | str,
+    occurred_at: datetime,
+    log_file: Path | str | None = None,
+) -> Path:
+    """Write one failure note into the private docs root.
+
+    Args:
+        ref: The episode link and its metadata.
+        reason: unmatched, download, analyzer or write.
+        directory: The configured ``paths.failure_notes_dir``.
+        occurred_at: When the failure was recorded.
+        log_file: The configured log file, named when its tail is missing.
+
+    Returns:
+        The path that was written.
+
+    Raises:
+        OSError: The directory or note cannot be created; the caller degrades
+            to a notification and stderr.
+    """
+    target = Path(directory)
+    path = failure_note_path(ref, directory=target)
+    log_path = Path(log_file) if log_file is not None else None
+    text = render_failure_note(
+        ref=ref,
+        reason=reason,
+        occurred_at=occurred_at,
+        log_tail=read_log_tail(log_path),
+        log_file=log_path,
+    )
+    target.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+def clear_failure_note(ref: EpisodeRef, *, directory: Path | str) -> Path | None:
+    """Delete this episode's failure note when one exists.
+
+    Only the expected ``_Failed - <episode title>.md`` name is touched, so a
+    failure note for another episode is left alone.
+
+    Args:
+        ref: The episode link and its metadata.
+        directory: The configured ``paths.failure_notes_dir``.
+
+    Returns:
+        The deleted path, or None when there was nothing to delete.
+    """
+    path = failure_note_path(ref, directory=Path(directory))
+    try:
+        if not path.is_file():
+            return None
+        path.unlink()
+    except OSError as exc:
+        log_line(f"could not remove failure note {path}: {exc}")
+        return None
+    return path

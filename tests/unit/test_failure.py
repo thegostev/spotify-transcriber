@@ -93,7 +93,6 @@ def test_read_log_tail_returns_none_when_the_file_is_missing_or_empty(tmp_path):
     assert read_log_tail(empty) == ""
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1051")
 def test_write_failure_note_creates_the_private_directory(tmp_path):
     from podscribe.failure import failure_note_name, write_failure_note
 
@@ -111,7 +110,6 @@ def test_write_failure_note_creates_the_private_directory(tmp_path):
     assert yaml.safe_load(text.split("---", 2)[1])["reason"] == "download"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1051")
 def test_clear_failure_note_removes_only_the_expected_name(tmp_path):
     from podscribe.failure import clear_failure_note
 
@@ -128,7 +126,6 @@ def test_clear_failure_note_removes_only_the_expected_name(tmp_path):
     assert clear_failure_note(unsafe_ref(), directory=directory) is None
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1051")
 def test_clear_failure_note_tolerates_a_missing_directory(tmp_path):
     from podscribe.failure import clear_failure_note
 
