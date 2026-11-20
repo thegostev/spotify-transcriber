@@ -190,3 +190,44 @@ def test_build_analyzer_rejects_an_unknown_backend():
 
     with pytest.raises(ConfigError, match="backend"):
         build_analyzer({"backend": "nope", "nope": {}})
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1058")
+def test_bucket_words_cuts_at_a_sentence_end_after_twenty_seconds():
+    from podscribe.analyzer import bucket_words
+
+    words = [{"start": float(i), "end": float(i + 1), "text": f"w{i}"} for i in range(25)]
+    words[19]["text"] = "w19."
+
+    segments = bucket_words(words)
+
+    assert [segment.start_seconds for segment in segments] == [0.0, 20.0]
+    assert segments[0].text.endswith("w19.")
+    assert segments[1].text == " ".join(f"w{i}" for i in range(20, 25))
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1058")
+def test_bucket_words_cuts_at_thirty_seconds_without_sentence_ends():
+    from podscribe.analyzer import bucket_words
+
+    words = [{"start": float(i), "end": float(i + 1), "text": f"w{i}"} for i in range(35)]
+
+    segments = bucket_words(words)
+
+    assert [segment.start_seconds for segment in segments] == [0.0, 30.0]
+    assert segments[0].text == " ".join(f"w{i}" for i in range(30))
+    assert segments[1].text == " ".join(f"w{i}" for i in range(30, 35))
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1058")
+def test_bucket_words_accepts_objects_with_start_end_and_text():
+    from podscribe.analyzer import bucket_words
+
+    class Word:
+        def __init__(self, start: float, end: float, text: str) -> None:
+            self.start, self.end, self.text = start, end, text
+
+    assert bucket_words([Word(0.0, 1.0, "Hello,"), Word(1.0, 2.0, "world.")]) == (
+        Segment(0.0, "Hello, world."),
+    )
+    assert bucket_words([]) == ()
