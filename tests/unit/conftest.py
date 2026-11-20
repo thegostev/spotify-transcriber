@@ -30,7 +30,7 @@ def config_factory(tmp_path: Path) -> Callable[..., Config]:
                 "match_window_days": 2,
                 "user_agent": "podscribe-test",
             },
-            analyzer={"backend": "command", "command": {"argv": ["fake"]}},
+            analyzer={"backend": "command", "command": {"argv": ["fake", "{audio}"]}},
             speech={},
             llm={},
             notifications={"macos": False},

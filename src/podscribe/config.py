@@ -79,6 +79,8 @@ def _validate_analyzer(analyzer: dict[str, Any], source: Path) -> None:
         argv = options["argv"]
         if not isinstance(argv, list) or not argv:
             raise ConfigError(f"config file {source} needs a non-empty list analyzer.command.argv")
+        if not any("{audio}" in str(part) for part in argv):
+            raise ConfigError(f"config file {source} needs {{audio}} in analyzer.command.argv")
 
 
 def load_config(path: Path | str = DEFAULT_CONFIG_PATH) -> Config:

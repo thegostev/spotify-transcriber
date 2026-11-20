@@ -99,7 +99,7 @@ def make_config(tmp_path: Path, *, output: Path | None = None, macos: bool = Fal
             "match_window_days": 2,
             "user_agent": "podscribe-test",
         },
-        analyzer={"backend": "command", "command": {"argv": ["fake"]}},
+        analyzer={"backend": "command", "command": {"argv": ["fake", "{audio}"]}},
         speech={},
         llm={},
         notifications={"macos": macos},
