@@ -17,7 +17,8 @@ Superwhisper with these settings:
 
 The key `podcast` is what podscribe writes as `analyzer.superwhisper.mode_key`
 in `config.yaml`. Superwhisper's `superwhisper://mode?key=` deep link silently
-ignores keys with spaces, so keep the key URL-safe (no spaces).
+ignores keys with spaces, so keep the key URL-safe (no spaces). Renaming the
+mode in the UI does not change the key - edit the key field too.
 
 ## Prompt
 
