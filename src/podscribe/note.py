@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import dataclass
 from datetime import date
 from itertools import count
 from pathlib import Path
@@ -21,6 +22,19 @@ class NoteExistsError(Exception):
     def __init__(self, path: Path) -> None:
         super().__init__(f"episode note already exists: {path}")
         self.path = path
+
+
+@dataclass(frozen=True)
+class NoteNames:
+    """The file names of one episode's note and its analysis note.
+
+    Attributes:
+        episode: ``YY-MM-DD Title.md``.
+        analysis: ``YY-MM-DD Title - Analysis.md``.
+    """
+
+    episode: str
+    analysis: str
 
 
 def _date_prefix(published_at: date | None) -> str:
@@ -51,12 +65,50 @@ def _frontmatter_value(path: Path, key: str) -> str | None:
     return None
 
 
-def note_filename(ref: EpisodeRef, show: str, *, output_dir: Path) -> str:
-    """Return the file name for an episode note, avoiding silent overwrites.
+def _analysis_name(episode_name: str) -> str:
+    """Return the analysis note name derived from a final episode note name."""
+    return f"{Path(episode_name).stem} - Analysis.md"
+
+
+def note_names(ref: EpisodeRef, show: str, *, output_dir: Path) -> NoteNames:
+    """Return the episode and analysis note names, avoiding silent overwrites.
 
     The date-and-title name wins; when another episode holds it, the show
-    name is appended, and when that is taken too the name is numbered.
-    A file for the same Spotify URL means the episode is already done.
+    name is appended, and when that is taken too the name is numbered. The
+    analysis name is derived from the final episode stem, so both names
+    carry the same suffix.
+
+    Args:
+        ref: The episode link and its metadata.
+        show: Show name, used only in the clash names.
+        output_dir: Folder that holds episode notes.
+
+    Returns:
+        The two note file names, without the folder.
+
+    Raises:
+        NoteExistsError: A note for the same Spotify URL already exists.
+    """
+    prefix = _date_prefix(ref.published_at)
+    base = f"{prefix} {_safe_name(ref.episode_title)}.md"
+    directory = Path(output_dir)
+    target = directory / base
+    if not target.exists():
+        return NoteNames(base, _analysis_name(base))
+    if _frontmatter_value(target, "spotify_url") == ref.spotify_url:
+        raise NoteExistsError(target)
+    stem = f"{prefix} {_safe_name(ref.episode_title)} - {_safe_name(show)}"
+    for number in count(1):
+        name = stem if number == 1 else f"{stem} {number}"
+        path = directory / f"{name}.md"
+        if not path.exists():
+            return NoteNames(path.name, _analysis_name(path.name))
+        if _frontmatter_value(path, "spotify_url") == ref.spotify_url:
+            raise NoteExistsError(path)
+
+
+def note_filename(ref: EpisodeRef, show: str, *, output_dir: Path) -> str:
+    """Return the file name for an episode note, avoiding silent overwrites.
 
     Args:
         ref: The episode link and its metadata.
@@ -69,22 +121,7 @@ def note_filename(ref: EpisodeRef, show: str, *, output_dir: Path) -> str:
     Raises:
         NoteExistsError: A note for the same Spotify URL already exists.
     """
-    prefix = _date_prefix(ref.published_at)
-    base = f"{prefix} {_safe_name(ref.episode_title)}.md"
-    directory = Path(output_dir)
-    target = directory / base
-    if not target.exists():
-        return base
-    if _frontmatter_value(target, "spotify_url") == ref.spotify_url:
-        raise NoteExistsError(target)
-    stem = f"{prefix} {_safe_name(ref.episode_title)} - {_safe_name(show)}"
-    for number in count(1):
-        name = stem if number == 1 else f"{stem} {number}"
-        path = directory / f"{name}.md"
-        if not path.exists():
-            return path.name
-        if _frontmatter_value(path, "spotify_url") == ref.spotify_url:
-            raise NoteExistsError(path)
+    return note_names(ref, show, output_dir=output_dir).episode
 
 
 def _yaml_string(value: str) -> str:

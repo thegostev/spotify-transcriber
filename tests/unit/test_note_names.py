@@ -24,7 +24,6 @@ def write_note(path, spotify_url):
     path.write_text(f'---\nshow: "S"\nspotify_url: "{spotify_url}"\n---\n\nbody\n', encoding="utf-8")
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1052")
 def test_note_names_pairs_episode_and_analysis_names(tmp_path):
     from podscribe.note import NoteNames, note_names
 
@@ -34,7 +33,6 @@ def test_note_names_pairs_episode_and_analysis_names(tmp_path):
     )
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1052")
 def test_note_names_derives_analysis_name_from_the_clashing_episode_stem(tmp_path):
     from podscribe.note import note_names
 
@@ -46,7 +44,6 @@ def test_note_names_derives_analysis_name_from_the_clashing_episode_stem(tmp_pat
     assert names.analysis == "26-11-18 An Episode - The Show - Analysis.md"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1052")
 def test_note_names_numbers_both_names_together(tmp_path):
     from podscribe.note import note_names
 
@@ -59,7 +56,6 @@ def test_note_names_numbers_both_names_together(tmp_path):
     assert names.analysis == "26-11-18 An Episode - The Show 2 - Analysis.md"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1052")
 def test_note_names_signals_already_done_for_the_same_spotify_url(tmp_path):
     from podscribe.note import NoteExistsError, note_names
 
