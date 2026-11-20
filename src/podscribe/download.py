@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlparse
 
@@ -9,11 +10,25 @@ from podscribe.http import HttpClientLike
 from podscribe.models import FeedItem
 
 DEFAULT_AUDIO_NAME = "episode.mp3"
+URL_TAG_LENGTH = 10
+
+
+def _url_tag(url: str) -> str:
+    """Return a short stable tag for an enclosure URL."""
+    return hashlib.sha1(url.encode("utf-8")).hexdigest()[:URL_TAG_LENGTH]
 
 
 def audio_filename(item: FeedItem) -> str:
-    """Return the enclosure's file name, falling back to a default."""
-    return PurePosixPath(urlparse(item.audio_url).path).name or DEFAULT_AUDIO_NAME
+    """Return a cache file name unique to the enclosure URL.
+
+    The URL path's stem and suffix are kept for readability; a short hash of
+    the whole URL keeps two enclosures that share a basename apart.
+    """
+    path = PurePosixPath(urlparse(item.audio_url).path)
+    default = PurePosixPath(DEFAULT_AUDIO_NAME)
+    stem = path.stem or default.stem
+    suffix = path.suffix or default.suffix
+    return f"{stem}-{_url_tag(item.audio_url)}{suffix}"
 
 
 def download_audio(item: FeedItem, directory: Path, client: HttpClientLike, *, overwrite: bool = False) -> Path:

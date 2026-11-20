@@ -2,8 +2,6 @@ import hashlib
 from datetime import date
 from pathlib import Path
 
-import pytest
-
 AUDIO_URL = "https://traffic.megaphone.fm/SCIM7125421200.mp3?updated=1747806938"
 
 
@@ -40,7 +38,7 @@ def test_download_audio_writes_the_enclosure_into_the_directory(tmp_path):
 
     result = download_audio(_item(AUDIO_URL), directory, client)
 
-    assert result == directory / "SCIM7125421200.mp3"
+    assert result == directory / f"SCIM7125421200-{_tag(AUDIO_URL)}.mp3"
     assert result.read_bytes() == b"ID3audio"
     assert client.calls == [(AUDIO_URL, result)]
 
@@ -52,7 +50,7 @@ def test_download_audio_falls_back_to_a_default_name_without_a_path(tmp_path):
 
     result = download_audio(_item("https://cdn.example"), tmp_path, client)
 
-    assert result.name == "episode.mp3"
+    assert result.name == f"episode-{_tag('https://cdn.example')}.mp3"
 
 
 def test_download_audio_reuses_the_file_for_the_same_url(tmp_path):
@@ -67,7 +65,6 @@ def test_download_audio_reuses_the_file_for_the_same_url(tmp_path):
     assert len(client.calls) == 1
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1046")
 def test_download_audio_keeps_same_basename_urls_apart(tmp_path):
     from podscribe.download import download_audio
 
@@ -83,7 +80,6 @@ def test_download_audio_keeps_same_basename_urls_apart(tmp_path):
     assert first.read_bytes() == second.read_bytes() == b"ID3audio"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1046")
 def test_download_audio_names_a_basename_less_url_deterministically(tmp_path):
     from podscribe.download import download_audio
 
@@ -101,7 +97,7 @@ def test_download_audio_keeps_an_existing_file_unless_overwrite_is_set(tmp_path)
     from podscribe.download import download_audio
 
     client = _FakeClient(b"new")
-    existing = tmp_path / "SCIM7125421200.mp3"
+    existing = tmp_path / f"SCIM7125421200-{_tag(AUDIO_URL)}.mp3"
     existing.write_bytes(b"old")
 
     assert download_audio(_item(AUDIO_URL), tmp_path, client) == existing
@@ -113,7 +109,7 @@ def test_download_audio_overwrites_when_asked(tmp_path):
     from podscribe.download import download_audio
 
     client = _FakeClient(b"new")
-    existing = tmp_path / "SCIM7125421200.mp3"
+    existing = tmp_path / f"SCIM7125421200-{_tag(AUDIO_URL)}.mp3"
     existing.write_bytes(b"old")
 
     assert download_audio(_item(AUDIO_URL), tmp_path, client, overwrite=True) == existing
