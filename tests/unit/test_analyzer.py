@@ -49,7 +49,6 @@ def _command(tmp_path: Path, body: str, *, timeout: float = 30.0):
     return CommandAnalyzer(argv=(sys.executable, str(script), "{audio}"), timeout_seconds=timeout)
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1058")
 def test_command_analyzer_maps_json_to_one_segment_and_analysis(tmp_path):
     audio = tmp_path / "episode.mp3"
     audio.write_bytes(b"audio")
@@ -69,7 +68,6 @@ def test_command_analyzer_maps_json_to_one_segment_and_analysis(tmp_path):
     assert result.analysis == "Notes"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1058")
 def test_command_analyzer_uses_optional_segments_and_drops_empty_analysis(tmp_path):
     analyzer = _command(
         tmp_path,
@@ -84,7 +82,6 @@ def test_command_analyzer_uses_optional_segments_and_drops_empty_analysis(tmp_pa
     assert result.analysis is None
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1058")
 @pytest.mark.parametrize(
     "body",
     [
@@ -102,7 +99,6 @@ def test_command_analyzer_rejects_bad_output(tmp_path, body):
         _command(tmp_path, body).analyze(tmp_path / "episode.mp3", REF)
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1058")
 def test_command_analyzer_times_out(tmp_path):
     from podscribe.analyzer import AnalyzerError
 
