@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
+import pytest
+
 from podscribe.analyzer import AnalyzerResult
 from podscribe.config import Config
 from podscribe.models import EpisodeRef, Segment, Transcript
@@ -220,3 +222,25 @@ def test_main_dry_run_prints_the_target_path(tmp_path, capsys):
 
     assert exit_code == 0
     assert "26-10-15 MCP, CLIs and agents.md" in capsys.readouterr().out
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1046")
+def test_add_episode_fills_a_missing_transcribed_at(tmp_path):
+    from podscribe.cli import add_episode
+
+    class UntimedAnalyzer(FakeAnalyzer):
+        def analyze(self, audio: Path, ref: EpisodeRef) -> AnalyzerResult:
+            result = super().analyze(audio, ref)
+            transcript = Transcript(segments=result.transcript.segments, language="en", model="Podcast")
+            return AnalyzerResult(transcript=transcript, analysis=None, analyzer="command")
+
+    outcome = add_episode(
+        "https://open.spotify.com/episode/abc123",
+        make_config(tmp_path),
+        client=FakeClient(),
+        analyzer=UntimedAnalyzer(),
+        dry_run=False,
+        now=datetime(2026, 11, 20, 23, 0, 0),
+    )
+
+    assert 'transcribed_at: "2026-11-20T23:00:00"' in outcome.episode_note.read_text(encoding="utf-8")
