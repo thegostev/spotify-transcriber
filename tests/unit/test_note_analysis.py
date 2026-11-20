@@ -2,8 +2,6 @@
 
 from datetime import date, datetime
 
-import pytest
-
 SPOTIFY_URL = "https://open.spotify.com/episode/abc"
 ANALYSIS = "## Themes\n\nTrust and repair."
 
@@ -39,7 +37,6 @@ def split_frontmatter(text):
     return head.splitlines(), body
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1059")
 def test_render_analysis_note_writes_frontmatter_and_links_the_episode_note():
     from podscribe.note import render_analysis_note
 
@@ -63,7 +60,6 @@ def test_render_analysis_note_writes_frontmatter_and_links_the_episode_note():
     ]
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1059")
 def test_render_analysis_note_keeps_the_podcast_mode_body_unchanged():
     from podscribe.note import render_analysis_note
 
@@ -81,7 +77,6 @@ def test_render_analysis_note_keeps_the_podcast_mode_body_unchanged():
     assert text.endswith("\n")
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1059")
 def test_render_analysis_note_strips_category_and_filename_headers_when_present():
     from podscribe.note import render_analysis_note
 
@@ -100,7 +95,6 @@ def test_render_analysis_note_strips_category_and_filename_headers_when_present(
     assert body.strip() == "## Themes\n\nBody"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1059")
 def test_render_episode_note_links_the_analysis_note_without_empty_sections():
     from podscribe.note import render_episode_note
 

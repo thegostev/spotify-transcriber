@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from itertools import count
 from pathlib import Path
 
@@ -129,7 +129,55 @@ def _yaml_string(value: str) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
-def _frontmatter_lines(note: EpisodeNote) -> list[str]:
+def _wikilink(note_name: str) -> str:
+    """Return an Obsidian wikilink to a note, without its ``.md`` suffix."""
+    return f"[[{Path(note_name).stem}]]"
+
+
+def _strip_analyzer_headers(text: str) -> str:
+    """Drop ``CATEGORY:`` and ``FILENAME:`` header lines; a no-op otherwise."""
+    lines = text.splitlines(keepends=True)
+    return "".join(line for line in lines if not line.startswith(("CATEGORY:", "FILENAME:")))
+
+
+def render_analysis_note(
+    *,
+    ref: EpisodeRef,
+    analyzer: str,
+    analysis: str,
+    analyzed_at: datetime | None,
+    episode_note: str,
+) -> str:
+    """Render one analysis note as Markdown: frontmatter and analyzer output.
+
+    Args:
+        ref: The episode link and its metadata.
+        analyzer: Name of the analyzer that produced the analysis.
+        analysis: The analyzer's Markdown, header lines stripped.
+        analyzed_at: When the analysis was produced, None when unknown.
+        episode_note: File name of the episode note to link back to.
+
+    Returns:
+        The complete Markdown document, ending in a newline.
+    """
+    published = ref.published_at.isoformat() if ref.published_at else "null"
+    analyzed = _yaml_string(analyzed_at.isoformat(timespec="seconds")) if analyzed_at else "null"
+    lines = [
+        FRONTMATTER_FENCE,
+        f"show: {_yaml_string(ref.show)}",
+        f"episode: {_yaml_string(ref.episode_title)}",
+        f"publish_date: {published}",
+        f"spotify_url: {_yaml_string(ref.spotify_url)}",
+        f"analyzer: {_yaml_string(analyzer)}",
+        f"analyzed_at: {analyzed}",
+        f"episode_note: {_yaml_string(_wikilink(episode_note))}",
+        FRONTMATTER_FENCE,
+    ]
+    body = _strip_analyzer_headers(analysis).strip()
+    return "\n".join([*lines, "", body]) + "\n"
+
+
+def _frontmatter_lines(note: EpisodeNote, analysis_note: str | None = None) -> list[str]:
     """Render the note frontmatter, tags and cleanup status included."""
     ref = note.ref
     transcribed = note.transcript.transcribed_at
@@ -148,13 +196,15 @@ def _frontmatter_lines(note: EpisodeNote) -> list[str]:
         f"speech_model: {_yaml_string(note.transcript.model)}",
         f"transcribed_at: {transcribed_text}",
     ]
+    if analysis_note:
+        lines.append(f"analysis_note: {_yaml_string(_wikilink(analysis_note))}")
     if note.tags:
         lines.append(f"tags: {json.dumps(list(note.tags), ensure_ascii=False)}")
     lines.extend([f"cleanup: {_yaml_string(note.cleanup)}", FRONTMATTER_FENCE])
     return lines
 
 
-def render_episode_note(note: EpisodeNote) -> str:
+def render_episode_note(note: EpisodeNote, *, analysis_note: str | None = None) -> str:
     """Render one episode note as Markdown: frontmatter, summary, transcript.
 
     Sections for summary and key points are written only when the model holds
@@ -162,11 +212,12 @@ def render_episode_note(note: EpisodeNote) -> str:
 
     Args:
         note: Everything the note contains.
+        analysis_note: File name of the analysis note to link, when there is one.
 
     Returns:
         The complete Markdown document, ending in a newline.
     """
-    parts = ["\n".join(_frontmatter_lines(note)), ""]
+    parts = ["\n".join(_frontmatter_lines(note, analysis_note)), ""]
     if note.summary:
         parts.extend(["## Summary", "", note.summary.strip(), ""])
     if note.key_points:
