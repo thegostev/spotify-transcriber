@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
+import pytest
+
 from podscribe.analyzer import AnalyzerResult
 from podscribe.config import Config
 from podscribe.models import EpisodeRef, Segment, Transcript
@@ -408,4 +410,164 @@ def test_add_episode_failure_note_write_error_degrades_to_stderr(tmp_path, capsy
     assert outcome.reason == "unmatched"
     assert outcome.failure_note is None
     assert "could not write failure note" in capsys.readouterr().err
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1051")
+def test_add_episode_notifies_once_for_unmatched(tmp_path):
+    from podscribe.cli import add_episode
+
+    calls = []
+    outcome = add_episode(
+        "https://open.spotify.com/episode/abc123",
+        make_config(tmp_path, macos=True),
+        client=WrongTitleClient(),
+        analyzer=FakeAnalyzer(),
+        notifier=lambda title, message: calls.append((title, message)),
+    )
+
+    assert outcome.status == "unmatched"
+    assert len(calls) == 1
+    assert "unmatched" in calls[0][0]
+    assert "MCP, CLIs and agents" in calls[0][1]
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1051")
+def test_add_episode_notifies_when_the_failure_note_cannot_be_written(tmp_path):
+    from podscribe.cli import add_episode
+
+    config = make_config(tmp_path, macos=True)
+    Path(config.paths["failure_notes_dir"]).write_text("not a directory", encoding="utf-8")
+    calls = []
+
+    outcome = add_episode(
+        "https://open.spotify.com/episode/abc123",
+        config,
+        client=WrongTitleClient(),
+        analyzer=FakeAnalyzer(),
+        notifier=lambda title, message: calls.append((title, message)),
+    )
+
+    assert outcome.failure_note is None
+    assert len(calls) == 1
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1051")
+def test_add_episode_does_not_notify_on_success(tmp_path):
+    from podscribe.cli import add_episode
+
+    calls = []
+    outcome = add_episode(
+        "https://open.spotify.com/episode/abc123",
+        make_config(tmp_path, macos=True),
+        client=FakeClient(),
+        analyzer=FakeAnalyzer(),
+        notifier=lambda title, message: calls.append((title, message)),
+    )
+
+    assert outcome.status == "done"
+    assert calls == []
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1051")
+def test_add_episode_notification_disabled_by_config(tmp_path):
+    from podscribe.cli import add_episode
+
+    calls = []
+    add_episode(
+        "https://open.spotify.com/episode/abc123",
+        make_config(tmp_path),
+        client=WrongTitleClient(),
+        analyzer=FakeAnalyzer(),
+        notifier=lambda title, message: calls.append((title, message)),
+    )
+
+    assert calls == []
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1051")
+def test_add_episode_dry_run_does_not_notify(tmp_path):
+    from podscribe.cli import add_episode
+
+    calls = []
+    add_episode(
+        "https://open.spotify.com/episode/abc123",
+        make_config(tmp_path, macos=True),
+        client=WrongTitleClient(),
+        analyzer=FakeAnalyzer(),
+        dry_run=True,
+        notifier=lambda title, message: calls.append((title, message)),
+    )
+
+    assert calls == []
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1051")
+def test_add_episode_success_removes_the_failure_note(tmp_path):
+    from podscribe.cli import add_episode
+
+    config = make_config(tmp_path, macos=True)
+    calls = []
+
+    def notifier(title, message):
+        calls.append((title, message))
+
+    failed = add_episode(
+        "https://open.spotify.com/episode/abc123",
+        config,
+        client=WrongTitleClient(),
+        analyzer=FakeAnalyzer(),
+        notifier=notifier,
+    )
+    assert failed.failure_note is not None
+    assert failed.failure_note.exists()
+
+    retried = add_episode(
+        "https://open.spotify.com/episode/abc123",
+        config,
+        client=FakeClient(),
+        analyzer=FakeAnalyzer(),
+        notifier=notifier,
+    )
+
+    assert retried.status == "done"
+    assert not failed.failure_note.exists()
+    assert len(calls) == 1
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1051")
+def test_add_episode_already_done_removes_the_failure_note(tmp_path):
+    from podscribe.cli import add_episode
+
+    config = make_config(tmp_path)
+    failed = add_episode(
+        "https://open.spotify.com/episode/abc123", config, client=WrongTitleClient(), analyzer=FakeAnalyzer()
+    )
+    assert failed.failure_note is not None
+    note = Path(config.paths["output_dir"]) / "26-10-15 MCP, CLIs and agents.md"
+    note.write_text('---\nspotify_url: "https://open.spotify.com/episode/abc123"\n---\n', encoding="utf-8")
+
+    retried = add_episode(
+        "https://open.spotify.com/episode/abc123", config, client=FakeClient(), analyzer=FakeAnalyzer()
+    )
+
+    assert retried.status == "already_done"
+    assert not failed.failure_note.exists()
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1051")
+def test_main_reports_the_failure_reason_and_note_path(tmp_path, capsys):
+    from podscribe.cli import main
+
+    exit_code = main(
+        ["add", "https://open.spotify.com/episode/abc123", "--config", str(_write_config(tmp_path))],
+        client=WrongTitleClient(),
+        analyzer=FakeAnalyzer(),
+    )
+
+    output = capsys.readouterr().out
+    assert exit_code == 1
+    assert "failure reason: unmatched" in output
+    assert "failure note:" in output
+    assert "_Failed - MCP, CLIs and agents.md" in output
+
 
