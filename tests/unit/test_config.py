@@ -202,7 +202,6 @@ def test_load_config_requires_the_audio_placeholder_in_command_argv(tmp_path):
         load_config(write_config(tmp_path, text))
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1058")
 def test_load_config_rejects_a_null_timeout(tmp_path):
     from podscribe.config import ConfigError, load_config
 
