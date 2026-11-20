@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-import pytest
-
 from podscribe.analyzer import AnalyzerResult
 from podscribe.config import Config
 from podscribe.models import EpisodeRef, Segment, Transcript
@@ -211,7 +209,6 @@ def _write_config(tmp_path: Path) -> Path:
     return path
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1046")
 def test_main_dry_run_prints_the_target_path(tmp_path, capsys):
     from podscribe.cli import main
 

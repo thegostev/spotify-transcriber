@@ -2,19 +2,22 @@
 
 from __future__ import annotations
 
+import argparse
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from podscribe.analyzer import Analyzer
-from podscribe.config import Config
+from podscribe.analyzer import Analyzer, build_analyzer
+from podscribe.config import Config, load_config
 from podscribe.download import download_audio
 from podscribe.episode_page import parse_episode_page
 from podscribe.feed import match_feed_item
-from podscribe.http import HttpClientLike
+from podscribe.http import HttpClient, HttpClientLike
 from podscribe.itunes import find_feed
 from podscribe.models import EpisodeNote, EpisodeRef
 from podscribe.note import NoteExistsError, note_names, render_analysis_note, render_episode_note
+
+SUCCESS_STATUSES = ("planned", "done")
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,3 +111,53 @@ def add_episode(
     return AddOutcome(
         "done", ref, feed_url=feed_url, episode_note=episode_path, analysis_note=analysis_path
     )
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Return the command line parser for ``podscribe``."""
+    parser = argparse.ArgumentParser(prog="podscribe", description="Turn podcast episodes into Obsidian notes.")
+    commands = parser.add_subparsers(dest="command", required=True)
+    add = commands.add_parser("add", help="write notes for one Spotify episode link")
+    add.add_argument("episode_url", help="Spotify episode link")
+    add.add_argument("--dry-run", action="store_true", help="resolve the feed match without downloading or writing")
+    add.add_argument("--config", default="config.yaml", help="path to config.yaml (default: ./config.yaml)")
+    return parser
+
+
+def main(
+    argv: list[str] | None = None,
+    *,
+    client: HttpClientLike | None = None,
+    analyzer: Analyzer | None = None,
+) -> int:
+    """Run the command line; return the process exit code.
+
+    Args:
+        argv: Arguments, ``sys.argv[1:]`` when None.
+        client: HTTP client override, used by tests.
+        analyzer: Analyzer override, used by tests.
+
+    Returns:
+        0 when the episode was planned or written, 1 otherwise.
+    """
+    args = build_parser().parse_args(argv)
+    config = load_config(args.config)
+    http = client or HttpClient(user_agent=str(config.intake["user_agent"]))
+    backend = analyzer or build_analyzer(config.analyzer, language=str(config.speech.get("language", "en")))
+    outcome = add_episode(args.episode_url, config, client=http, analyzer=backend, dry_run=args.dry_run)
+    if outcome.status == "planned":
+        print(f"would write: {outcome.episode_note}")
+        print(f"would write: {outcome.analysis_note}")
+    elif outcome.status == "done":
+        print(f"wrote: {outcome.episode_note}")
+        if outcome.analysis_note:
+            print(f"wrote: {outcome.analysis_note}")
+        else:
+            print("no analysis")
+    elif outcome.status == "already_done":
+        print(f"already done: {outcome.episode_note}")
+    elif outcome.status == "no_feed":
+        print(f"no public feed for show: {outcome.ref.show}")
+    else:
+        print(f"unmatched episode: {outcome.ref.episode_title}")
+    return 0 if outcome.status in SUCCESS_STATUSES else 1
