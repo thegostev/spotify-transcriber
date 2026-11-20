@@ -192,7 +192,6 @@ def test_build_analyzer_rejects_an_unknown_backend():
         build_analyzer({"backend": "nope", "nope": {}})
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1058")
 def test_bucket_words_cuts_at_a_sentence_end_after_twenty_seconds():
     from podscribe.analyzer import bucket_words
 
@@ -206,7 +205,6 @@ def test_bucket_words_cuts_at_a_sentence_end_after_twenty_seconds():
     assert segments[1].text == " ".join(f"w{i}" for i in range(20, 25))
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1058")
 def test_bucket_words_cuts_at_thirty_seconds_without_sentence_ends():
     from podscribe.analyzer import bucket_words
 
@@ -219,7 +217,6 @@ def test_bucket_words_cuts_at_thirty_seconds_without_sentence_ends():
     assert segments[1].text == " ".join(f"w{i}" for i in range(30, 35))
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1058")
 def test_bucket_words_accepts_objects_with_start_end_and_text():
     from podscribe.analyzer import bucket_words
 
