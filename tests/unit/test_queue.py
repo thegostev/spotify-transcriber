@@ -89,7 +89,6 @@ def test_enqueue_retries_a_failed_link(config_factory):
     assert result.job.finished_at is None
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1050")
 def test_claim_next_marks_the_oldest_job_running(config_factory):
     from podscribe.queue import claim_next, enqueue, open_store
 
@@ -106,7 +105,6 @@ def test_claim_next_marks_the_oldest_job_running(config_factory):
     assert claim_next(store) is None
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1050")
 def test_finish_records_the_final_state_and_time(config_factory):
     from podscribe.queue import claim_next, enqueue, finish, list_jobs, open_store
 

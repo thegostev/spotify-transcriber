@@ -9,6 +9,10 @@ from pathlib import Path
 
 QUEUE_FILENAME = "queue.db"
 QUEUED = "queued"
+RUNNING = "running"
+DONE = "done"
+UNMATCHED = "unmatched"
+FAILED = "failed"
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
@@ -109,5 +113,76 @@ def list_jobs(store: Store, *, limit: int = 50) -> list[Job]:
     try:
         rows = connection.execute("SELECT * FROM jobs ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
         return [_job(row) for row in rows]
+    finally:
+        connection.close()
+
+
+def claim_next(store: Store, *, now: datetime | None = None) -> Job | None:
+    """Claim the oldest queued job and mark it running.
+
+    Args:
+        store: The queue database.
+        now: Start time; defaults to the current time.
+
+    Returns:
+        The claimed job, or None when no job is queued.
+    """
+    connection = _connect(store)
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        row = connection.execute(
+            "SELECT id FROM jobs WHERE state = ? ORDER BY id LIMIT 1", (QUEUED,)
+        ).fetchone()
+        if row is None:
+            connection.execute("COMMIT")
+            return None
+        connection.execute(
+            "UPDATE jobs SET state = ?, started_at = ? WHERE id = ?",
+            (RUNNING, _timestamp(now), row["id"]),
+        )
+        job = _job(connection.execute("SELECT * FROM jobs WHERE id = ?", (row["id"],)).fetchone())
+        connection.execute("COMMIT")
+        return job
+    except BaseException:
+        connection.execute("ROLLBACK")
+        raise
+    finally:
+        connection.close()
+
+
+def finish(
+    store: Store,
+    job: Job,
+    state: str,
+    *,
+    note_path: Path | str | None = None,
+    reason: str | None = None,
+    now: datetime | None = None,
+) -> Job:
+    """Record how one claimed job ended.
+
+    Args:
+        store: The queue database.
+        job: The claimed job.
+        state: Final state: done, unmatched or failed.
+        note_path: Episode note written for a done job.
+        reason: Why an unmatched or failed job stopped.
+        now: Finish time; defaults to the current time.
+
+    Returns:
+        The job as stored after the update.
+
+    Raises:
+        ValueError: ``state`` is not a final state.
+    """
+    if state not in (DONE, UNMATCHED, FAILED):
+        raise ValueError(f"not a final job state: {state}")
+    connection = _connect(store)
+    try:
+        connection.execute(
+            "UPDATE jobs SET state = ?, note_path = ?, reason = ?, finished_at = ? WHERE id = ?",
+            (state, str(note_path) if note_path else None, reason, _timestamp(now), job.id),
+        )
+        return _job(connection.execute("SELECT * FROM jobs WHERE id = ?", (job.id,)).fetchone())
     finally:
         connection.close()
