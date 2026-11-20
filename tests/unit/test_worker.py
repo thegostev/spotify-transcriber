@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-import pytest
-
 from podscribe.analyzer import AnalyzerResult
 from podscribe.models import EpisodeRef, Segment, Transcript
 
@@ -160,13 +158,15 @@ def run_once(config, store, *, client):
     return lines
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1050")
 def test_run_jobs_marks_an_unmatched_episode(config_factory):
     from podscribe.queue import enqueue, list_jobs
 
     class WrongTitleClient(FakeClient):
         def get_text(self, url: str) -> str:
-            return super().get_text(url).replace("MCP, CLIs and agents</title>", "Another episode</title>")
+            text = super().get_text(url)
+            if url == URL:
+                return text.replace('content="MCP, CLIs and agents"', 'content="Another episode"')
+            return text
 
     config = config_factory()
     store = store_for(config)
@@ -180,7 +180,6 @@ def test_run_jobs_marks_an_unmatched_episode(config_factory):
     assert lines[-1] == f"unmatched {URL}: Another episode"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1050")
 def test_run_jobs_marks_a_show_without_a_feed_failed(config_factory):
     from podscribe.queue import enqueue, list_jobs
 
@@ -199,7 +198,6 @@ def test_run_jobs_marks_a_show_without_a_feed_failed(config_factory):
     assert job.reason == "no public feed for show: Talk Python To Me"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1050")
 def test_run_jobs_records_an_exception_and_its_traceback(config_factory):
     from podscribe.queue import enqueue, list_jobs
     from podscribe.worker import run_jobs
