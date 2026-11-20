@@ -14,7 +14,21 @@ intake:
   match_window_days: 2                     # publish-date tolerance for a feed match
   user_agent: "podscribe/0.0 (personal podcast notes)"
 
-speech:
+analyzer:                                  # one backend: audio -> transcript (+ optional analysis)
+  backend: superwhisper                    # superwhisper | command | module
+  superwhisper:                            # default on the Mac mini; calls SuperwhisperObsidianWF
+    wf_path: "~/Documents/Obsidian/Utvikling/1 - Code/SuperwhisperObsidianWF/superwhisper-obsidian-wf"
+    mode_key: "podcast"                    # Custom Mode key, not its display name
+    timeout_seconds: 3600
+  command:                                 # any executable; stdout must be the JSON contract
+    argv: ["my-analyzer", "--audio", "{audio}"]
+    timeout_seconds: 3600
+    # Local model example: a wrapper around whisper.cpp or mlx-whisper
+    # argv: ["python", "-m", "my_local_analyzer", "{audio}"]
+  module:                                  # Python package.module:Class with analyze(audio, ref)
+    path: "my_package.my_module:MyAnalyzer"
+
+speech:                                    # OPTIONAL / legacy - the analyzer replaces it
   language: en
   chunk_seconds: null                      # set by spike LAG-1044
   plan1:                                   # set by spike LAG-1044
@@ -26,7 +40,7 @@ speech:
     engine: mlx-whisper
     model: "mlx-community/whisper-large-v3-turbo"
 
-llm:                                       # Ollama Cloud, text passes only
+llm:                                       # OPTIONAL / legacy - v1 does not run cleanup passes
   host: "https://ollama.com"
   model: "deepseek-v4.1-flash:cloud"
   api_key:
