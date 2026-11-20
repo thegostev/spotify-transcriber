@@ -33,7 +33,6 @@ def test_failure_note_name_is_deterministic_and_obsidian_safe():
 
 
 @pytest.mark.parametrize("reason", ["unmatched", "download", "analyzer", "write"])
-@pytest.mark.xfail(strict=True, reason="LAG-1051")
 def test_render_failure_note_holds_the_required_fields(reason):
     from podscribe.failure import render_failure_note
 
@@ -61,7 +60,6 @@ def test_render_failure_note_holds_the_required_fields(reason):
     assert "last line" in body
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1051")
 def test_render_failure_note_notes_a_missing_log_file():
     from podscribe.failure import render_failure_note
 

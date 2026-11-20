@@ -7,7 +7,9 @@ analyzer or write.
 
 from __future__ import annotations
 
+import json
 from collections import deque
+from datetime import datetime
 from pathlib import Path
 
 from podscribe.models import EpisodeRef
@@ -61,3 +63,59 @@ def read_log_tail(path: Path | str | None, *, max_lines: int = LOG_TAIL_LINES) -
     except OSError:
         return None
     return "".join(lines).rstrip("\n")
+
+
+def _yaml_string(value: str) -> str:
+    """Return a string as a YAML-safe double-quoted scalar."""
+    return json.dumps(value, ensure_ascii=False)
+
+
+def render_failure_note(
+    *,
+    ref: EpisodeRef,
+    reason: str,
+    occurred_at: datetime,
+    log_tail: str | None,
+    log_file: Path | None = None,
+) -> str:
+    """Render one failure note as Markdown: frontmatter and a reason body.
+
+    Args:
+        ref: The episode link and its metadata.
+        reason: unmatched, download, analyzer or write.
+        occurred_at: When the failure was recorded.
+        log_tail: Trailing log lines, None when the log file is missing.
+        log_file: The configured log path, named when the tail is missing.
+
+    Returns:
+        The complete Markdown document, ending in a newline.
+    """
+    stamp = occurred_at.isoformat(timespec="seconds")
+    lines = [
+        "---",
+        f"show: {_yaml_string(ref.show)}",
+        f"episode: {_yaml_string(ref.episode_title)}",
+        f"spotify_url: {_yaml_string(ref.spotify_url)}",
+        f"reason: {_yaml_string(reason)}",
+        f"occurred_at: {_yaml_string(stamp)}",
+        "---",
+        "",
+        f"# Failure: {ref.episode_title}",
+        "",
+        f"- Episode: [{ref.episode_title}]({ref.spotify_url})",
+        f"- Show: {ref.show}",
+        f"- Reason: {reason}",
+        f"- Time: {stamp}",
+        "",
+        "## Last log lines",
+        "",
+    ]
+    if log_tail is None:
+        location = f"`{log_file}`" if log_file else "the configured log file"
+        lines.append(f"No log file at {location}.")
+    elif not log_tail.strip():
+        location = f"`{log_file}`" if log_file else "the configured log file"
+        lines.append(f"The log file is empty: {location}.")
+    else:
+        lines.extend(["```text", log_tail.rstrip("\n"), "```"])
+    return "\n".join(lines) + "\n"
