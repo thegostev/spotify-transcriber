@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
+import pytest
+
 from podscribe.analyzer import AnalyzerResult
 from podscribe.models import EpisodeRef, Segment, Transcript
 
@@ -140,3 +142,90 @@ def test_run_jobs_marks_an_existing_note_done(config_factory):
     job = list_jobs(store)[0]
     assert job.state == "done"
     assert job.note_path == str(existing)
+
+
+def run_once(config, store, *, client):
+    from podscribe.worker import run_jobs
+
+    lines: list[str] = []
+    run_jobs(
+        config,
+        store=store,
+        client=client,
+        analyzer=FakeAnalyzer(),
+        log=lines.append,
+        once=True,
+        now=lambda: FIXED_NOW,
+    )
+    return lines
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1050")
+def test_run_jobs_marks_an_unmatched_episode(config_factory):
+    from podscribe.queue import enqueue, list_jobs
+
+    class WrongTitleClient(FakeClient):
+        def get_text(self, url: str) -> str:
+            return super().get_text(url).replace("MCP, CLIs and agents</title>", "Another episode</title>")
+
+    config = config_factory()
+    store = store_for(config)
+    enqueue(store, URL)
+
+    lines = run_once(config, store, client=WrongTitleClient())
+
+    job = list_jobs(store)[0]
+    assert job.state == "unmatched"
+    assert job.reason == "unmatched episode: Another episode"
+    assert lines[-1] == f"unmatched {URL}: Another episode"
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1050")
+def test_run_jobs_marks_a_show_without_a_feed_failed(config_factory):
+    from podscribe.queue import enqueue, list_jobs
+
+    class NoFeedClient(FakeClient):
+        def get_json(self, url: str):
+            return {"results": []}
+
+    config = config_factory()
+    store = store_for(config)
+    enqueue(store, URL)
+
+    run_once(config, store, client=NoFeedClient())
+
+    job = list_jobs(store)[0]
+    assert job.state == "failed"
+    assert job.reason == "no public feed for show: Talk Python To Me"
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1050")
+def test_run_jobs_records_an_exception_and_its_traceback(config_factory):
+    from podscribe.queue import enqueue, list_jobs
+    from podscribe.worker import run_jobs
+
+    class ExplodingAnalyzer(FakeAnalyzer):
+        def analyze(self, audio: Path, ref: EpisodeRef) -> AnalyzerResult:
+            raise RuntimeError("analyzer boom")
+
+    config = config_factory()
+    store = store_for(config)
+    enqueue(store, URL)
+    lines: list[str] = []
+
+    run_jobs(
+        config,
+        store=store,
+        client=FakeClient(),
+        analyzer=ExplodingAnalyzer(),
+        log=lines.append,
+        once=True,
+        now=lambda: FIXED_NOW,
+    )
+
+    job = list_jobs(store)[0]
+    assert job.state == "failed"
+    assert job.reason == "analyzer boom"
+    assert lines[0] == f"start {URL}"
+    assert f"failed {URL}: analyzer boom" in lines
+    assert any("RuntimeError: analyzer boom" in line for line in lines[2:])
