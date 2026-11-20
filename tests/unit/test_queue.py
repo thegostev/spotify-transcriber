@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime
 
-import pytest
-
 URL = "https://open.spotify.com/episode/abc123"
 
 
@@ -18,7 +16,6 @@ def test_open_store_places_the_database_in_the_data_dir(tmp_path, config_factory
     assert store.path.parent.is_dir()
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1050")
 def test_enqueue_adds_a_queued_job(config_factory):
     from podscribe.queue import enqueue, open_store
 
@@ -32,7 +29,6 @@ def test_enqueue_adds_a_queued_job(config_factory):
     assert result.job.created_at == "2026-11-20T12:01:00"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1050")
 def test_list_jobs_returns_the_newest_first(config_factory):
     from podscribe.queue import enqueue, list_jobs, open_store
 
