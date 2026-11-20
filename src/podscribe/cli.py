@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
@@ -24,7 +25,10 @@ from podscribe.http import HttpClient, HttpClientLike
 from podscribe.itunes import find_feed
 from podscribe.models import EpisodeNote, EpisodeRef
 from podscribe.note import NoteExistsError, note_names, render_analysis_note, render_episode_note
-from podscribe.queue import enqueue, open_store
+from podscribe.queue import DONE, QUEUED, RUNNING, Job, enqueue, list_jobs, open_store
+
+SUPERWHISPER_LOCK = Path("~/.superwhisper.lock")
+STATUS_TIME_FORMAT = "%H:%M"
 
 
 @dataclass(frozen=True, slots=True)
@@ -247,6 +251,8 @@ def build_parser() -> argparse.ArgumentParser:
     add.add_argument("episode_url", help="Spotify episode link")
     add.add_argument("--dry-run", action="store_true", help="report what would be queued without writing")
     add.add_argument("--config", default="config.yaml", help="path to config.yaml (default: ./config.yaml)")
+    status = commands.add_parser("status", help="list queued, running and finished jobs")
+    status.add_argument("--config", default="config.yaml", help="path to config.yaml (default: ./config.yaml)")
     return parser
 
 
@@ -273,6 +279,8 @@ def main(
     config = load_config(args.config)
     if args.command == "add":
         return _add_command(args, config)
+    if args.command == "status":
+        return _status_command(config)
     return 1
 
 
@@ -290,6 +298,66 @@ def _add_command(args: argparse.Namespace, config: Config) -> int:
         print(f"queued: {result.job.episode_url} (retry)")
     else:
         print(f"queued: {result.job.episode_url}")
+    return 0
+
+
+def _clock(stamp: str | None) -> str:
+    """Return the ``HH:MM`` part of an ISO timestamp, ``?`` when unreadable."""
+    try:
+        return datetime.fromisoformat(stamp or "").strftime(STATUS_TIME_FORMAT)
+    except ValueError:
+        return "?"
+
+
+def superwhisper_lock_held(path: Path | str = SUPERWHISPER_LOCK) -> bool:
+    """Return True when another process holds the shared Superwhisper lock.
+
+    The probe takes the lock without blocking and releases it at once. A
+    missing fcntl module or lock file counts as free, so status stays usable
+    without the meeting daemon installed.
+    """
+    try:
+        import fcntl
+    except ImportError:
+        return False
+    try:
+        handle = Path(path).expanduser().open("r", encoding="utf-8")
+    except OSError:
+        return False
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return True
+    except OSError:
+        return False
+    finally:
+        handle.close()
+    return False
+
+
+def format_status(jobs: list[Job], *, lock_held: Callable[[], bool]) -> list[str]:
+    """Render one status line per job, newest first, flagging a held lock."""
+    waiting = lock_held() if any(job.state == RUNNING for job in jobs) else False
+    lines = []
+    for job in jobs:
+        if job.state == QUEUED:
+            line = f"queued  {job.episode_url}  (added {_clock(job.created_at)})"
+        elif job.state == RUNNING:
+            line = f"running  {job.episode_url}  (started {_clock(job.started_at)})"
+            if waiting:
+                line += "  waiting for Superwhisper"
+        elif job.state == DONE:
+            line = f"done  {job.note_path or job.episode_url}"
+        else:
+            line = f"{job.state}  {job.episode_url}  ({job.reason or 'no reason'})"
+        lines.append(line)
+    return lines
+
+
+def _status_command(config: Config) -> int:
+    """Print the queue, newest first, flagging a running job while locked."""
+    for line in format_status(list_jobs(open_store(config.paths["data_dir"])), lock_held=superwhisper_lock_held):
+        print(line)
     return 0
 
 

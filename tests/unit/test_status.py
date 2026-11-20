@@ -5,14 +5,11 @@ from __future__ import annotations
 import fcntl
 from datetime import datetime
 
-import pytest
-
 from podscribe.queue import Job
 
 URL = "https://open.spotify.com/episode/abc123"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1050")
 def test_format_status_lists_every_state():
     from podscribe.cli import format_status
 
@@ -31,7 +28,6 @@ def test_format_status_lists_every_state():
     ]
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1050")
 def test_format_status_flags_a_running_job_while_superwhisper_is_locked():
     from podscribe.cli import format_status
 
@@ -43,7 +39,6 @@ def test_format_status_flags_a_running_job_while_superwhisper_is_locked():
     assert format_status(jobs, lock_held=lambda: False) == [f"running  {URL}  (started 12:05)"]
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1050")
 def test_superwhisper_lock_probe_sees_a_held_lock(tmp_path):
     from podscribe.cli import superwhisper_lock_held
 
@@ -61,14 +56,12 @@ def test_superwhisper_lock_probe_sees_a_held_lock(tmp_path):
     assert superwhisper_lock_held(path) is False
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1050")
 def test_superwhisper_lock_probe_treats_a_missing_file_as_free(tmp_path):
     from podscribe.cli import superwhisper_lock_held
 
     assert superwhisper_lock_held(tmp_path / "missing.lock") is False
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1050")
 def test_main_status_prints_the_queue_without_building_the_analyzer(config_factory, capsys, monkeypatch):
     import podscribe.cli as cli
     from podscribe.queue import enqueue, open_store
