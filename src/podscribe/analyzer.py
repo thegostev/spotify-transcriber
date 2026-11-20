@@ -9,6 +9,7 @@ from __future__ import annotations
 import importlib
 import json
 import subprocess
+import sys
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -162,6 +163,65 @@ class ModuleAnalyzer:
         return _normalise_module_result(raw, module_name, self.language)
 
 
+def _load_superwhisper_client(wf_path: Path):
+    """Import lane B's ``superwhisper_client`` from the configured workflow path."""
+    module = sys.modules.get("superwhisper_client")
+    if module is not None:
+        return module
+    location = str(Path(wf_path).expanduser())
+    if location not in sys.path:
+        sys.path.insert(0, location)
+    try:
+        return importlib.import_module("superwhisper_client")
+    except ImportError as exc:
+        raise AnalyzerError(f"cannot import superwhisper_client from {location}: {exc}") from exc
+
+
+@dataclass(frozen=True, slots=True)
+class SuperwhisperAnalyzer:
+    """Call SuperwhisperObsidianWF's ``analyze_file`` for one audio file.
+
+    Attributes:
+        wf_path: The workflow checkout that carries ``superwhisper_client``.
+        mode_key: Superwhisper Custom Mode key, e.g. ``podcast``.
+        timeout_seconds: Wall-clock limit while Superwhisper runs.
+        language: Language code when the workflow reports none.
+    """
+
+    wf_path: Path
+    mode_key: str
+    timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS
+    language: str = "en"
+
+    def analyze(self, audio: Path, ref: EpisodeRef) -> AnalyzerResult:
+        """Run one Superwhisper pass and map its result onto the note types.
+
+        The Podcast mode is a cleanup prompt, so any non-empty analysis is
+        accepted: ``contract_check=None``.
+
+        Raises:
+            AnalyzerError: The client cannot be imported, the run fails or
+                it returns no transcript.
+        """
+        client = _load_superwhisper_client(self.wf_path)
+        try:
+            raw = client.analyze_file(
+                str(audio), mode_key=self.mode_key, timeout=self.timeout_seconds, contract_check=None
+            )
+        except Exception as exc:
+            raise AnalyzerError(f"superwhisper analyzer failed: {exc}") from exc
+        text = getattr(raw, "transcript", None)
+        if not isinstance(text, str) or not text.strip():
+            raise AnalyzerError("superwhisper analyzer returned no transcript")
+        words = getattr(raw, "segments", ()) or ()
+        segments = bucket_words(words) if words else single_segment(text)
+        analysis = getattr(raw, "analysis", None)
+        analysis_text = analysis.strip() if isinstance(analysis, str) and analysis.strip() else None
+        model = getattr(raw, "mode_name", None) or "superwhisper"
+        transcript = Transcript(segments=segments or single_segment(text), language=self.language, model=str(model))
+        return AnalyzerResult(transcript=transcript, analysis=analysis_text, analyzer="superwhisper")
+
+
 def build_analyzer(section: Mapping[str, Any], *, language: str = "en") -> Analyzer:
     """Build the backend selected by ``analyzer.backend``.
 
@@ -187,6 +247,14 @@ def build_analyzer(section: Mapping[str, Any], *, language: str = "en") -> Analy
         if not isinstance(path, str) or not path:
             raise ConfigError("analyzer.module.path must be package.module:Class")
         return ModuleAnalyzer(path=path, language=language)
+    if backend == "superwhisper":
+        wf_path, mode_key = options.get("wf_path"), options.get("mode_key")
+        if not isinstance(wf_path, str) or not wf_path or not isinstance(mode_key, str) or not mode_key:
+            raise ConfigError("analyzer.superwhisper needs wf_path and mode_key")
+        timeout = float(options.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS))
+        return SuperwhisperAnalyzer(
+            wf_path=Path(wf_path).expanduser(), mode_key=mode_key, timeout_seconds=timeout, language=language
+        )
     raise ConfigError(f"unknown analyzer backend {backend!r}; expected command, module or superwhisper")
 
 

@@ -245,7 +245,6 @@ class FakeSuperwhisperClient:
         return self.result
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1058")
 def test_superwhisper_analyzer_maps_one_pass_results(tmp_path, monkeypatch):
     from types import SimpleNamespace
 
@@ -270,7 +269,6 @@ def test_superwhisper_analyzer_maps_one_pass_results(tmp_path, monkeypatch):
     }
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1058")
 def test_superwhisper_analyzer_buckets_word_segments(tmp_path, monkeypatch):
     from types import SimpleNamespace
 
@@ -293,7 +291,6 @@ def test_superwhisper_analyzer_buckets_word_segments(tmp_path, monkeypatch):
     assert result.transcript.model == "superwhisper"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1058")
 def test_superwhisper_analyzer_uses_the_configured_language(tmp_path, monkeypatch):
     from types import SimpleNamespace
 
@@ -313,7 +310,6 @@ def test_superwhisper_analyzer_uses_the_configured_language(tmp_path, monkeypatc
     assert result.analysis is None
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1058")
 def test_superwhisper_analyzer_wraps_client_failures(tmp_path, monkeypatch):
     from types import SimpleNamespace
 
@@ -343,7 +339,6 @@ def test_importing_the_analyzer_does_not_import_superwhisper_client(monkeypatch)
     assert podscribe.analyzer.Analyzer is not None
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1058")
 def test_build_analyzer_builds_the_superwhisper_backend():
     from podscribe.analyzer import SuperwhisperAnalyzer, build_analyzer
 
