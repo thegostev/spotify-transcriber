@@ -130,3 +130,36 @@ def test_clear_failure_note_tolerates_a_missing_directory(tmp_path):
     from podscribe.failure import clear_failure_note
 
     assert clear_failure_note(unsafe_ref(), directory=tmp_path / "missing") is None
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1051")
+def test_notify_macos_runs_osascript_with_a_timeout():
+    import subprocess
+
+    from podscribe.failure import notify_macos
+
+    calls = []
+
+    def runner(argv, **kwargs):
+        calls.append((argv, kwargs))
+        return subprocess.CompletedProcess(argv, 0)
+
+    notify_macos('podscribe failed', 'Show "X"\nline two', runner=runner)
+
+    argv, kwargs = calls[0]
+    assert argv[:2] == ["osascript", "-e"]
+    assert "display notification" in argv[2]
+    assert 'Show \\"X\\" line two' in argv[2]
+    assert kwargs["timeout"] > 0
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1051")
+def test_notify_macos_swallows_runner_errors(capsys):
+    from podscribe.failure import notify_macos
+
+    def runner(argv, **kwargs):
+        raise OSError("no osascript here")
+
+    notify_macos("podscribe failed", "message", runner=runner)
+
+    assert "notification failed" in capsys.readouterr().err
