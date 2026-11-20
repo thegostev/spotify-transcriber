@@ -170,6 +170,29 @@ def test_load_config_rejects_a_missing_backend_setting(tmp_path):
         load_config(write_config(tmp_path, text))
 
 
+@pytest.mark.xfail(strict=True, reason="LAG-1058")
+def test_load_config_rejects_a_non_string_backend(tmp_path):
+    from podscribe.config import ConfigError, load_config
+
+    text = BASE_CONFIG.replace("backend: superwhisper", "backend: [command]")
+
+    with pytest.raises(ConfigError, match="analyzer.backend"):
+        load_config(write_config(tmp_path, text))
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1058")
+def test_load_config_rejects_a_non_numeric_timeout(tmp_path):
+    from podscribe.config import ConfigError, load_config
+
+    text = BASE_CONFIG.replace(
+        '    mode_key: "podcast"\n    timeout_seconds: 3600',
+        '    mode_key: "podcast"\n    timeout_seconds: abc',
+    )
+
+    with pytest.raises(ConfigError, match=r"analyzer\.superwhisper\.timeout_seconds"):
+        load_config(write_config(tmp_path, text))
+
+
 def test_load_config_rejects_a_non_list_command_argv(tmp_path):
     from podscribe.config import ConfigError, load_config
 
