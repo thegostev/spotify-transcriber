@@ -40,3 +40,10 @@ analyzer:
 The transcript may carry timestamps as word-level `segments` (`{"start", "end", "text"}`); they are grouped into lines of about 20-40 seconds. Without timestamps the whole text becomes one segment at `00:00:00`.
 
 The template's `speech` and `llm` sections are legacy and optional: v1 uses the analyzer instead of local speech plans and cleanup passes.
+
+## Failure notes and notifications
+
+An episode link that produces no note leaves a failure note in `paths.failure_notes_dir`, named `_Failed - <episode title>.md`. It records the episode link, show, reason (`unmatched`, `download`, `analyzer` or `write`), time and the last 20 lines of `paths.log_file`. Unmatched episodes never get an episode note.
+
+When `notifications.macos` is true, every failure also raises a macOS notification. Sending a failed episode link again retries it; a successful run removes that failure note.
+
