@@ -2,6 +2,8 @@
 
 from datetime import date, datetime
 
+import pytest
+
 SPOTIFY_URL = "https://open.spotify.com/episode/abc"
 ANALYSIS = "## Themes\n\nTrust and repair."
 
@@ -139,3 +141,32 @@ def test_render_analysis_note_promotes_the_analyzer_metadata_block():
     assert 'topics: ["mcp", "ai-agents"]' in text
     assert text.count("---") == 2
     assert text.endswith("## TL;DR\n- One idea.\n")
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1071")
+def test_render_analysis_note_prefers_the_canonical_names():
+    from podscribe.names import NameFix
+    from podscribe.note import render_analysis_note
+
+    analysis = (
+        "---\n"
+        'guest: "Marcin Grzemski"\n'
+        'host: "unknown"\n'
+        "topics: [terraform]\n"
+        "---\n"
+        "\n## TL;DR\n- One idea.\n"
+    )
+
+    text = render_analysis_note(
+        ref=ref(),
+        analyzer="superwhisper",
+        analysis=analysis,
+        analyzed_at=None,
+        episode_note="26-11-18 An Episode.md",
+        names=NameFix(guest="Marcin Wyszynski", host="Lee Atchison"),
+    )
+
+    assert 'guest: "Marcin Wyszynski"' in text
+    assert 'host: "Lee Atchison"' in text
+    assert "Grzemski" not in text
+    assert 'topics: ["terraform"]' in text
