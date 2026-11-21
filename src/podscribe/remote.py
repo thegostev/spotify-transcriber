@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import secrets
 import shlex
 import subprocess
 import time
@@ -16,8 +17,8 @@ from podscribe.config import ConfigError
 TRANSPORTS = ("rex", "ssh")
 DEFAULT_TRANSPORT = "rex"
 DEFAULT_COMMAND = "python -m podscribe"
-STATUS_BEGIN = "__podscribe_status_begin__"
-STATUS_END = "__podscribe_status_end__"
+STATUS_BEGIN = "__podscribe_status_begin_"
+STATUS_END = "__podscribe_status_end_"
 REX_MISSING_TARGET = 3
 STATUS_TIMEOUT_SECONDS = 30.0
 POLL_SECONDS = 0.2
@@ -109,7 +110,9 @@ def _rex_argv(remote: RemoteConfig, verb: str, *options: str) -> list[str]:
     return ["rex", *(("-S", remote.rex_host) if remote.rex_host else ()), verb, *options]
 
 
-def rex_call(remote: RemoteConfig, line: str, *, wait: bool, run=run_subprocess) -> str:
+def rex_call(
+    remote: RemoteConfig, line: str, *, wait: bool, run=run_subprocess, begin: str = "", end: str = ""
+) -> str:
     """Type the line into the Rex session; poll the screen when ``wait``."""
     _checked(run(_rex_argv(remote, "send", "-s", remote.rex_session, line + "\n")), remote, "rex send")
     if not wait:
@@ -117,7 +120,7 @@ def rex_call(remote: RemoteConfig, line: str, *, wait: bool, run=run_subprocess)
     deadline = time.monotonic() + STATUS_TIMEOUT_SECONDS
     capture = _rex_argv(remote, "capture", "-s", remote.rex_session, "--unwrap", "--trim")
     while True:
-        found = between_markers(_checked(run(capture), remote, "rex capture").stdout)
+        found = between_markers(_checked(run(capture), remote, "rex capture").stdout, begin, end)
         if found is not None:
             return found
         if time.monotonic() >= deadline:
@@ -126,18 +129,18 @@ def rex_call(remote: RemoteConfig, line: str, *, wait: bool, run=run_subprocess)
         time.sleep(POLL_SECONDS)
 
 
-def ssh_call(remote: RemoteConfig, line: str, *, wait: bool, run=run_subprocess) -> str:
+def ssh_call(remote: RemoteConfig, line: str, *, wait: bool, run=run_subprocess, begin: str = "", end: str = "") -> str:
     """Run the line over ssh; when ``wait``, return the output between the markers."""
     result = _checked(run(["ssh", remote.ssh_target, "--", line]), remote, "ssh")
-    return (between_markers(result.stdout) or "") if wait else ""
+    return (between_markers(result.stdout, begin, end) or "") if wait else ""
 
 
-def between_markers(screen: str) -> str | None:
-    """Return what the far side printed between the status markers, if anything."""
+def between_markers(screen: str, begin: str, end: str) -> str | None:
+    """Return what the far side printed between these two markers, if both are there."""
     lines = screen.splitlines()
-    starts = [index for index, text in enumerate(lines) if text.strip() == STATUS_BEGIN]
+    starts = [index for index, text in enumerate(lines) if text.strip() == begin]
     for start in reversed(starts):
-        ends = [index for index in range(start + 1, len(lines)) if lines[index].strip() == STATUS_END]
+        ends = [index for index in range(start + 1, len(lines)) if lines[index].strip() == end]
         if ends:
             return "\n".join(lines[start + 1 : ends[0]])
     return None
@@ -151,7 +154,13 @@ def send_add(remote: RemoteConfig, url: str, **options) -> None:
     TRANSPORT_CALLS[remote.transport](remote, remote_line(remote, "add", url), wait=False, **options)
 
 
-def read_status(remote: RemoteConfig, **options) -> str:
-    """Forward ``status`` and return the far side's output between the markers."""
-    line = f"echo {STATUS_BEGIN}; {remote_line(remote, 'status')}; echo {STATUS_END}"
-    return TRANSPORT_CALLS[remote.transport](remote, line, wait=True, **options)
+def read_status(remote: RemoteConfig, *, token: str | None = None, **options) -> str:
+    """Forward ``status`` and return the output between this call's markers.
+
+    A fresh token keeps an older status, still visible in the terminal
+    scrollback, from being mistaken for this call's answer.
+    """
+    token = token or secrets.token_hex(8)
+    begin, end = f"{STATUS_BEGIN}{token}__", f"{STATUS_END}{token}__"
+    line = f"echo {begin}; {remote_line(remote, 'status')}; echo {end}"
+    return TRANSPORT_CALLS[remote.transport](remote, line, wait=True, begin=begin, end=end, **options)

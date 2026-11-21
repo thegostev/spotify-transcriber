@@ -141,11 +141,12 @@ def rex_remote(**overrides):
     return RemoteConfig(**values)
 
 
-def status_screen(*lines: str) -> str:
+def status_screen(*lines: str, token: str = "test") -> str:
     from podscribe.remote import STATUS_BEGIN, STATUS_END
 
-    echoed = f"harald@mini bootstrap % echo {STATUS_BEGIN}; python -m podscribe status; echo {STATUS_END}"
-    return "\n".join([echoed, STATUS_BEGIN, *lines, STATUS_END, "harald@mini bootstrap %"]) + "\n"
+    begin, end = f"{STATUS_BEGIN}{token}__", f"{STATUS_END}{token}__"
+    echoed = f"harald@mini bootstrap % echo {begin}; python -m podscribe status; echo {end}"
+    return "\n".join([echoed, begin, *lines, end, "harald@mini bootstrap %"]) + "\n"
 
 
 def test_rex_send_types_the_line_and_submits_it():
@@ -199,7 +200,7 @@ def test_rex_status_polls_the_screen_until_the_end_marker(monkeypatch):
     monkeypatch.setattr(remote_module.time, "monotonic", FakeClock())
     monkeypatch.setattr(remote_module.time, "sleep", lambda seconds: None)
 
-    output = read_status(rex_remote(), run=runner)
+    output = read_status(rex_remote(), run=runner, token="test")
 
     assert output == "done  /vault/note.md\nqueued  https://x  (added 08:00)"
     assert runner.calls[1][:2] == ["rex", "-S"]
@@ -215,7 +216,7 @@ def test_rex_status_gives_up_after_the_timeout(monkeypatch):
     monkeypatch.setattr(remote_module, "STATUS_TIMEOUT_SECONDS", 0.5)
     runner = FakeRunner(completed([], 0))
     with pytest.raises(RemoteError, match="podscribe"):
-        read_status(rex_remote(), run=runner)
+        read_status(rex_remote(), run=runner, token="test")
 
 
 def test_ssh_status_returns_the_text_between_the_markers():
@@ -223,7 +224,7 @@ def test_ssh_status_returns_the_text_between_the_markers():
 
     runner = FakeRunner(completed([], 0, stdout=status_screen("failed  https://x  (download)")))
 
-    output = read_status(rex_remote(transport="ssh"), run=runner)
+    output = read_status(rex_remote(transport="ssh"), run=runner, token="test")
 
     assert output == "failed  https://x  (download)"
 
@@ -268,6 +269,7 @@ def test_cli_remote_status_prints_the_captured_lines(tmp_path, capsys, monkeypat
         completed([], 0, stdout=status_screen("done  /vault/note.md", "queued  https://x  (added 08:00)")),
     )
     monkeypatch.setattr(remote_module.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(remote_module.secrets, "token_hex", lambda size: "test")
 
     assert main(["remote", "status", "--config", str(laptop_config(tmp_path))], remote_run=runner) == 0
 
@@ -286,7 +288,6 @@ def test_cli_remote_exit_three_explains_the_missing_session(tmp_path, capsys):
     assert "session new podscribe" in capsys.readouterr().err
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1053")
 def test_rex_status_ignores_an_older_status_still_on_the_screen(monkeypatch):
     from podscribe import remote as remote_module
     from podscribe.remote import read_status
