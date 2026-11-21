@@ -1,0 +1,5 @@
+#!/bin/sh
+# Laptop shim: forward podscribe commands to the Mac mini over Rex or ssh.
+# See `podscribe remote` and the remote section of config.yaml.
+set -eu
+exec uv run --project "$(dirname "$0")/.." --quiet python -m podscribe remote "$@"

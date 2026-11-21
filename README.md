@@ -31,6 +31,21 @@ Adding the same link again is harmless: `add` prints `already done: <note path>`
 
 The worker logs every job start, end and failure to `paths.log_file` (default `~/.podscribe/podscribe.log`). The LaunchAgent starts the worker at login and restarts it after a crash; load it once with the `launchctl bootstrap` command that `install-service` prints. While a job runs and the meetings daemon holds `~/.superwhisper.lock`, `status` appends `waiting for Superwhisper`. podscribe never loads or unloads the service itself.
 
+## Use it from the laptop
+
+`podscribe remote add` and `podscribe remote status` run on the laptop and forward to the Mac mini over Rex (default) or ssh. The target and transport come from the `remote` section of the laptop's `config.yaml`; a laptop config may hold only that section.
+
+```sh
+uv run podscribe remote add https://open.spotify.com/episode/...   # typed into the mini's session
+uv run podscribe remote status                                     # read back with rex capture
+uv run podscribe remote add <link> --dry-run                       # print the far-side command
+bin/podscribe-remote status                                        # same, from any directory in the repo
+```
+
+Rex types the line into the session, so that session must be a shell on the Mac mini with the repo available; `remote.cwd` sets the directory and `remote.command` the program (default `python -m podscribe`). `status` is wrapped in begin/end markers and polled with `rex capture` until the markers appear. When the session or host is missing Rex exits 3 and podscribe prints the `rex session new ...` command to create the session. The episode link is quoted with `shlex`, so it always stays one argument.
+
+With `transport: ssh`, the same line runs over `ssh <ssh_target>` and stdout carries the answer; no Rex session is needed.
+
 ## Plug your own analyzer
 
 One config-selected component, the analyzer, turns downloaded audio into a transcript and an optional analysis. Pick a backend in `config.yaml`:
