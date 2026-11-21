@@ -158,6 +158,11 @@ def _strip_analyzer_headers(text: str) -> str:
     return "".join(line for line in lines if not line.startswith(("CATEGORY:", "FILENAME:")))
 
 
+def _missing_title(value: object) -> bool:
+    """Return whether an analyzer title is absent or says it had no episode title."""
+    return not isinstance(value, str) or not value.strip() or value.strip().lower().startswith("unknown")
+
+
 def _split_leading_frontmatter(text: str) -> tuple[dict[str, object], str]:
     """Return a leading YAML block and the body after it.
 
@@ -217,6 +222,8 @@ def render_analysis_note(
         f"analyzed_at: {analyzed}",
     ]
     title = metadata.get("title")
+    if names is not None and _missing_title(title):
+        title = ref.episode_title
     if isinstance(title, str) and title.strip():
         lines.append(f"analyzer_title: {_yaml_string(title.strip())}")
     for field, canonical in (("guest", names and names.guest), ("host", names and names.host)):

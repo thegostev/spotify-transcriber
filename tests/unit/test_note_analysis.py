@@ -1,6 +1,5 @@
 """Tests for rendering the analysis note and linking it from the episode note."""
 
-import pytest
 
 
 from datetime import date, datetime
@@ -172,7 +171,6 @@ def test_render_analysis_note_prefers_the_canonical_names():
     assert 'topics: ["terraform"]' in text
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1071")
 def test_render_analysis_note_replaces_an_unknown_analyzer_title():
     from podscribe.names import NameFix
     from podscribe.note import render_analysis_note
