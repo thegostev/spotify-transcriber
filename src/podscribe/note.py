@@ -12,6 +12,7 @@ from pathlib import Path
 import yaml
 
 from podscribe.models import EpisodeNote, EpisodeRef
+from podscribe.names import NameFix
 
 UNSAFE_CHARS = re.compile(r'[:\[\]#^|\\*"<>?]')
 WHITESPACE = re.compile(r"\s+")
@@ -188,6 +189,7 @@ def render_analysis_note(
     analysis: str,
     analyzed_at: datetime | None,
     episode_note: str,
+    names: NameFix | None = None,
 ) -> str:
     """Render one analysis note as Markdown: frontmatter and analyzer output.
 
@@ -197,6 +199,7 @@ def render_analysis_note(
         analysis: The analyzer's Markdown, header lines stripped.
         analyzed_at: When the analysis was produced, None when unknown.
         episode_note: File name of the episode note to link back to.
+        names: Canonical guest and host; they win over the analyzer's block.
 
     Returns:
         The complete Markdown document, ending in a newline.
@@ -216,8 +219,8 @@ def render_analysis_note(
     title = metadata.get("title")
     if isinstance(title, str) and title.strip():
         lines.append(f"analyzer_title: {_yaml_string(title.strip())}")
-    for field in ("guest", "host"):
-        value = metadata.get(field)
+    for field, canonical in (("guest", names and names.guest), ("host", names and names.host)):
+        value = canonical or metadata.get(field)
         if isinstance(value, str) and value.strip():
             lines.append(f"{field}: {_yaml_string(value.strip())}")
     topics = metadata.get("topics")

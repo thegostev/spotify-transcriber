@@ -2,8 +2,6 @@
 
 from datetime import date, datetime
 
-import pytest
-
 SPOTIFY_URL = "https://open.spotify.com/episode/abc"
 ANALYSIS = "## Themes\n\nTrust and repair."
 
@@ -143,7 +141,6 @@ def test_render_analysis_note_promotes_the_analyzer_metadata_block():
     assert text.endswith("## TL;DR\n- One idea.\n")
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1071")
 def test_render_analysis_note_prefers_the_canonical_names():
     from podscribe.names import NameFix
     from podscribe.note import render_analysis_note
