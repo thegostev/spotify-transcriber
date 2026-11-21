@@ -42,7 +42,7 @@ uv run podscribe remote add <link> --dry-run                       # print the f
 bin/podscribe-remote status                                        # same, from any directory in the repo
 ```
 
-Rex types the line into the session, so that session must be a shell on the Mac mini with the repo available; `remote.cwd` sets the directory and `remote.command` the program (default `python -m podscribe`). `status` is wrapped in begin/end markers and polled with `rex capture` until the markers appear. When the session or host is missing Rex exits 3 and podscribe prints the `rex session new ...` command to create the session. The episode link is quoted with `shlex`, so it always stays one argument.
+Rex types the line into the session, so that session must be a shell on the Mac mini with the repo available; `remote.cwd` sets the directory, `remote.command` the program (default `python -m podscribe`), and `remote.config`, when set, is appended as `--config` after `add` or `status`. `status` is wrapped in begin/end markers (a fresh token per call) and polled with `rex capture` until that call's markers appear, so an older status in the scrollback cannot answer it. When the session or host is missing Rex exits 3 and podscribe prints the `rex session new ...` command to create the session. The episode link is quoted with `shlex`, so it always stays one argument.
 
 With `transport: ssh`, the same line runs over `ssh <ssh_target>` and stdout carries the answer; no Rex session is needed.
 
