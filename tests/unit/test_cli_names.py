@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-import pytest
-
 TITLE = "Navigating Cloud Infrastructure using AI with Marcin Wyszynski, Spacelift"
 ANALYSIS = """---
 title: "Cloud infrastructure"
@@ -123,7 +121,6 @@ def written_analysis(tmp_path: Path) -> str:
     return note.read_text(encoding="utf-8")
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1071")
 def test_add_episode_writes_the_canonical_guest_and_host(tmp_path):
     from podscribe.cli import add_episode
 
@@ -138,7 +135,6 @@ def test_add_episode_writes_the_canonical_guest_and_host(tmp_path):
     assert "SpaceLift" not in text
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1071")
 def test_add_episode_applies_the_configured_alias_to_the_body(tmp_path):
     from podscribe.cli import add_episode
 

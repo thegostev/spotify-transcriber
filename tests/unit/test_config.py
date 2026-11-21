@@ -225,14 +225,12 @@ def test_load_config_rejects_a_non_list_command_argv(tmp_path):
         load_config(write_config(tmp_path, text))
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1071")
 def test_load_config_defaults_the_analysis_section_to_empty(tmp_path):
     from podscribe.config import load_config
 
     assert load_config(write_config(tmp_path)).analysis == {}
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1071")
 def test_load_config_exposes_the_analysis_name_rules(tmp_path):
     from podscribe.config import load_config
 

@@ -26,6 +26,7 @@ from podscribe.feed import match_feed_item
 from podscribe.http import HttpClient, HttpClientLike
 from podscribe.itunes import find_feed
 from podscribe.models import EpisodeNote, EpisodeRef
+from podscribe.names import correct_analysis, derive_names
 from podscribe.note import NoteExistsError, note_names, render_analysis_note, render_episode_note
 from podscribe.queue import DONE, QUEUED, RUNNING, Job, enqueue, list_jobs, open_store
 from podscribe.remote import RemoteError, load_remote_config, read_status, remote_line, run_subprocess, send_add
@@ -228,6 +229,8 @@ def add_episode(
             detail=str(exc),
         )
     has_analysis = bool(result.analysis)
+    canonical = derive_names(ref.episode_title, item.author, config.analysis.get("names"))
+    analysis = correct_analysis(result.analysis, canonical) if result.analysis else None
     stamp = now or datetime.now()
     transcript = result.transcript
     if transcript.transcribed_at is None:
@@ -243,13 +246,14 @@ def add_episode(
         note, analysis_note=names.analysis if has_analysis else None, analyzer=result.analyzer
     )
     analysis_text = None
-    if result.analysis:
+    if analysis:
         analysis_text = render_analysis_note(
             ref=ref,
             analyzer=result.analyzer,
-            analysis=result.analysis,
+            analysis=analysis,
             analyzed_at=stamp,
             episode_note=names.episode,
+            names=canonical,
         )
     try:
         output_dir.mkdir(parents=True, exist_ok=True)

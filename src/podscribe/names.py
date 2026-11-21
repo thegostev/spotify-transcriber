@@ -79,7 +79,7 @@ def derive_names(episode_title: str, author: str = "", rules: Mapping[str, Any] 
     Returns:
         The names to write, with config overrides taking precedence.
     """
-    settings = rules or {}
+    settings = rules if isinstance(rules, Mapping) else {}
     guest, brand = _from_title(episode_title)
     return NameFix(
         guest=_text(settings.get("guest")) or guest,
