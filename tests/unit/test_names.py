@@ -1,5 +1,7 @@
 """Tests for canonical names applied to an analyzer's Markdown."""
 
+import pytest
+
 
 
 TITLE = "Navigating Cloud Infrastructure using AI with Marcin Wyszynski, Spacelift"
@@ -73,3 +75,15 @@ def test_correct_analysis_leaves_unrelated_names_alone():
     )
 
     assert corrected == "SpaceX and Spacelift ship rockets; SpaceLiftoff is not the brand."
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1071")
+def test_correct_analysis_replaces_unknown_guest_and_host_statements():
+    from podscribe.names import NameFix, correct_analysis
+
+    fix = NameFix(guest="Marcin Wyszynski", host="Lee Atchison")
+    text = "- **Guest:** unknown.\n- **Host:** unknown (not given in the inputs).\n"
+
+    corrected = correct_analysis(text, fix)
+
+    assert corrected == "- **Guest:** Marcin Wyszynski.\n- **Host:** Lee Atchison.\n"
