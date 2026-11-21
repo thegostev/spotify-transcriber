@@ -226,3 +226,65 @@ def test_ssh_status_returns_the_text_between_the_markers():
     output = read_status(rex_remote(transport="ssh"), run=runner)
 
     assert output == "failed  https://x  (download)"
+
+
+def laptop_config(tmp_path, *, transport: str = "rex"):
+    return write_remote_config(
+        tmp_path / "laptop.yaml",
+        f"remote:\n  transport: {transport}\n  rex_host: mini\n  rex_session: podscribe\n  ssh_target: h@m\n",
+    )
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1053")
+def test_cli_remote_add_sends_and_prints(tmp_path, capsys):
+    from podscribe.cli import main
+
+    runner = FakeRunner(completed([], 0))
+    url = "https://open.spotify.com/episode/abc"
+
+    assert main(["remote", "add", url, "--config", str(laptop_config(tmp_path))], remote_run=runner) == 0
+
+    assert runner.calls[0][-1] == f"python -m podscribe add {url}\n"
+    assert capsys.readouterr().out == f"sent: {url}\n"
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1053")
+def test_cli_remote_add_dry_run_prints_the_line_without_sending(tmp_path, capsys):
+    from podscribe.cli import main
+
+    runner = FakeRunner()
+    url = "https://open.spotify.com/episode/abc"
+
+    assert main(["remote", "add", url, "--dry-run", "--config", str(laptop_config(tmp_path))], remote_run=runner) == 0
+
+    assert runner.calls == []
+    assert capsys.readouterr().out == f"would run: python -m podscribe add {url}\n"
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1053")
+def test_cli_remote_status_prints_the_captured_lines(tmp_path, capsys, monkeypatch):
+    from podscribe import remote as remote_module
+    from podscribe.cli import main
+
+    runner = FakeRunner(
+        completed([], 0),
+        completed([], 0, stdout=status_screen("done  /vault/note.md", "queued  https://x  (added 08:00)")),
+    )
+    monkeypatch.setattr(remote_module.time, "sleep", lambda seconds: None)
+
+    assert main(["remote", "status", "--config", str(laptop_config(tmp_path))], remote_run=runner) == 0
+
+    assert capsys.readouterr().out == "done  /vault/note.md\nqueued  https://x  (added 08:00)\n"
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1053")
+def test_cli_remote_exit_three_explains_the_missing_session(tmp_path, capsys):
+    from podscribe.cli import main
+
+    runner = FakeRunner(completed([], 3, stderr='session "podscribe" not found'))
+
+    code = main(["remote", "add", "https://open.spotify.com/episode/abc", "--config", str(laptop_config(tmp_path))],
+                remote_run=runner)
+
+    assert code == 1
+    assert "session new podscribe" in capsys.readouterr().err
