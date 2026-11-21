@@ -284,3 +284,21 @@ def test_cli_remote_exit_three_explains_the_missing_session(tmp_path, capsys):
 
     assert code == 1
     assert "session new podscribe" in capsys.readouterr().err
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1053")
+def test_rex_status_ignores_an_older_status_still_on_the_screen(monkeypatch):
+    from podscribe import remote as remote_module
+    from podscribe.remote import read_status
+
+    runner = FakeRunner(
+        completed([], 0),
+        completed([], 0, stdout=status_screen("done  old", token="old")),
+        completed([], 0, stdout=status_screen("done  new", token="test")),
+    )
+    monkeypatch.setattr(remote_module.time, "monotonic", FakeClock())
+    monkeypatch.setattr(remote_module.time, "sleep", lambda seconds: None)
+
+    output = read_status(rex_remote(), run=runner, token="test")
+
+    assert output == "done  new"
