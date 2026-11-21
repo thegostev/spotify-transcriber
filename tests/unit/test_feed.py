@@ -112,7 +112,6 @@ def test_match_feed_item_parses_clock_style_durations_and_guid():
     assert item.guid == "abc"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1071")
 def test_match_feed_item_reads_the_channel_itunes_author():
     from podscribe.episode_page import parse_episode_page
     from podscribe.feed import match_feed_item
@@ -125,7 +124,6 @@ def test_match_feed_item_reads_the_channel_itunes_author():
     assert item.author == "Scicomm Media"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1071")
 def test_match_feed_item_has_no_author_when_the_feed_has_none():
     from podscribe.feed import match_feed_item
     from podscribe.models import EpisodeRef

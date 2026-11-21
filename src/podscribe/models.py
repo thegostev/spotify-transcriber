@@ -39,6 +39,7 @@ class FeedItem:
         duration_seconds: Duration when the feed states one.
         show_notes: Item description, used as the name list for cleanup.
         guid: Feed guid, when present.
+        author: Channel ``itunes:author`` - the show's host or publisher.
     """
 
     title: str
@@ -47,6 +48,7 @@ class FeedItem:
     duration_seconds: int | None = None
     show_notes: str = ""
     guid: str | None = None
+    author: str = ""
 
 
 @dataclass(frozen=True, slots=True)
