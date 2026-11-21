@@ -1,5 +1,8 @@
 """Tests for rendering the analysis note and linking it from the episode note."""
 
+import pytest
+
+
 from datetime import date, datetime
 
 SPOTIFY_URL = "https://open.spotify.com/episode/abc"
@@ -167,3 +170,23 @@ def test_render_analysis_note_prefers_the_canonical_names():
     assert 'host: "Lee Atchison"' in text
     assert "Grzemski" not in text
     assert 'topics: ["terraform"]' in text
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1071")
+def test_render_analysis_note_replaces_an_unknown_analyzer_title():
+    from podscribe.names import NameFix
+    from podscribe.note import render_analysis_note
+
+    analysis = "---\ntitle: \"unknown (episode title not provided)\"\n---\n\n## TL;DR\n- One idea.\n"
+
+    text = render_analysis_note(
+        ref=ref(),
+        analyzer="superwhisper",
+        analysis=analysis,
+        analyzed_at=None,
+        episode_note="26-11-18 An Episode.md",
+        names=NameFix(),
+    )
+
+    assert 'analyzer_title: "An Episode"' in text
+    assert "episode title not provided" not in text
