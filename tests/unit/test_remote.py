@@ -235,7 +235,6 @@ def laptop_config(tmp_path, *, transport: str = "rex"):
     )
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1053")
 def test_cli_remote_add_sends_and_prints(tmp_path, capsys):
     from podscribe.cli import main
 
@@ -248,7 +247,6 @@ def test_cli_remote_add_sends_and_prints(tmp_path, capsys):
     assert capsys.readouterr().out == f"sent: {url}\n"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1053")
 def test_cli_remote_add_dry_run_prints_the_line_without_sending(tmp_path, capsys):
     from podscribe.cli import main
 
@@ -261,7 +259,6 @@ def test_cli_remote_add_dry_run_prints_the_line_without_sending(tmp_path, capsys
     assert capsys.readouterr().out == f"would run: python -m podscribe add {url}\n"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1053")
 def test_cli_remote_status_prints_the_captured_lines(tmp_path, capsys, monkeypatch):
     from podscribe import remote as remote_module
     from podscribe.cli import main
@@ -277,7 +274,6 @@ def test_cli_remote_status_prints_the_captured_lines(tmp_path, capsys, monkeypat
     assert capsys.readouterr().out == "done  /vault/note.md\nqueued  https://x  (added 08:00)\n"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1053")
 def test_cli_remote_exit_three_explains_the_missing_session(tmp_path, capsys):
     from podscribe.cli import main
 

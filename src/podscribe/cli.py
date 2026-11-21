@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 
 from podscribe.analyzer import Analyzer, build_analyzer
-from podscribe.config import Config, load_config
+from podscribe.config import Config, ConfigError, load_config
 from podscribe.download import download_audio
 from podscribe.episode_page import parse_episode_page
 from podscribe.failure import (
@@ -27,6 +28,7 @@ from podscribe.itunes import find_feed
 from podscribe.models import EpisodeNote, EpisodeRef
 from podscribe.note import NoteExistsError, note_names, render_analysis_note, render_episode_note
 from podscribe.queue import DONE, QUEUED, RUNNING, Job, enqueue, list_jobs, open_store
+from podscribe.remote import RemoteError, load_remote_config, read_status, remote_line, run_subprocess, send_add
 
 SUPERWHISPER_LOCK = Path("~/.superwhisper.lock")
 STATUS_TIME_FORMAT = "%H:%M"
@@ -293,6 +295,14 @@ def build_parser() -> argparse.ArgumentParser:
     install = commands.add_parser("install-service", help="write the worker LaunchAgent plist")
     install.add_argument("--dry-run", action="store_true", help="print the plist without writing")
     install.add_argument("--config", default="config.yaml", help="path to config.yaml (default: ./config.yaml)")
+    remote = commands.add_parser("remote", help="forward add and status to the Mac mini")
+    remote_commands = remote.add_subparsers(dest="remote_command", required=True)
+    remote_add = remote_commands.add_parser("add", help="queue an episode link on the Mac mini")
+    remote_add.add_argument("episode_url", help="Spotify episode link")
+    remote_add.add_argument("--dry-run", action="store_true", help="print the far-side command without sending")
+    remote_add.add_argument("--config", default="config.yaml", help="laptop config with a remote section")
+    remote_status = remote_commands.add_parser("status", help="read the queue on the Mac mini")
+    remote_status.add_argument("--config", default="config.yaml", help="laptop config with a remote section")
     return parser
 
 
@@ -301,6 +311,7 @@ def main(
     *,
     client: HttpClientLike | None = None,
     analyzer: Analyzer | None = None,
+    remote_run: Callable | None = None,
 ) -> int:
     """Run the command line; return the process exit code.
 
@@ -311,11 +322,14 @@ def main(
         argv: Arguments, ``sys.argv[1:]`` when None.
         client: HTTP client override, used by tests.
         analyzer: Analyzer override, used by tests.
+        remote_run: Subprocess runner override for ``remote``, used by tests.
 
     Returns:
         0 when the command succeeded, 1 otherwise.
     """
     args = build_parser().parse_args(argv)
+    if args.command == "remote":
+        return _remote_command(args, run=remote_run or run_subprocess)
     config = load_config(args.config)
     if args.command == "add":
         return _add_command(args, config)
@@ -326,6 +340,25 @@ def main(
     if args.command == "install-service":
         return _install_service_command(args, config)
     return 1
+
+
+def _remote_command(args: argparse.Namespace, *, run: Callable) -> int:
+    """Forward ``add`` or ``status`` to the configured transport."""
+    try:
+        remote = load_remote_config(args.config)
+        if args.remote_command == "add":
+            if args.dry_run:
+                print(f"would run: {remote_line(remote, 'add', args.episode_url)}")
+            else:
+                send_add(remote, args.episode_url, run=run)
+                print(f"sent: {args.episode_url}")
+        else:
+            for line in read_status(remote, run=run).splitlines():
+                print(line)
+    except (ConfigError, RemoteError) as exc:
+        print(f"podscribe: {exc}", file=sys.stderr)
+        return 1
+    return 0
 
 
 def _add_command(args: argparse.Namespace, config: Config) -> int:
