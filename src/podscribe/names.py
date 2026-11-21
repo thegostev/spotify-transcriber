@@ -17,6 +17,7 @@ TITLE_GUEST_MARKER = " with "
 TITLE_BRAND_SEPARATOR = ", "
 MAX_NAME_WORDS = 4
 SENTENCE_PUNCTUATION = (".", "!", "?", ":")
+UNKNOWN_LABEL = re.compile(r"(?im)^(\s*(?:[-*]\s*)?\*\*(Guest|Host):\*\*)\s*unknown\b.*$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,6 +90,17 @@ def derive_names(episode_title: str, author: str = "", rules: Mapping[str, Any] 
     )
 
 
+def _replace_unknown_labels(text: str, fix: NameFix) -> str:
+    """Write the canonical name where the analysis says a role is unknown."""
+    names = {"guest": fix.guest, "host": fix.host}
+
+    def swap(match: re.Match[str]) -> str:
+        name = names[match.group(2).lower()]
+        return f"{match.group(1)} {name}." if name else match.group(0)
+
+    return UNKNOWN_LABEL.sub(swap, text)
+
+
 def correct_analysis(text: str, fix: NameFix) -> str:
     """Return ``text`` with known wrong spellings and brand casing fixed.
 
@@ -105,4 +117,4 @@ def correct_analysis(text: str, fix: NameFix) -> str:
     if fix.brand:
         pattern = re.compile(rf"\b{re.escape(fix.brand)}\b", re.IGNORECASE)
         text = pattern.sub(lambda _: fix.brand, text)
-    return text
+    return _replace_unknown_labels(text, fix)
