@@ -305,16 +305,16 @@ def test_rex_status_ignores_an_older_status_still_on_the_screen(monkeypatch):
     assert output == "done  new"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1053")
 def test_load_remote_config_reads_the_far_side_config_path(tmp_path):
     from podscribe.remote import load_remote_config
 
-    path = write_remote_config(tmp_path / "laptop.yaml", "remote:\n  rex_session: p\n  config: ../bootstrap/config.yaml\n")
+    path = write_remote_config(
+        tmp_path / "laptop.yaml", "remote:\n  rex_session: p\n  config: ../bootstrap/config.yaml\n"
+    )
 
     assert load_remote_config(path).config == "../bootstrap/config.yaml"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1053")
 def test_remote_line_puts_the_config_flag_after_the_action():
     from podscribe.remote import RemoteConfig, remote_line
 

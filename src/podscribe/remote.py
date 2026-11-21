@@ -27,7 +27,11 @@ Result = subprocess.CompletedProcess[str]
 
 @dataclass(frozen=True, slots=True)
 class RemoteConfig:
-    """Far-side settings; an empty ``rex_host`` means this machine's server."""
+    """Far-side settings; an empty ``rex_host`` means this machine's server.
+
+    ``config`` is appended as ``--config`` after ``add`` or ``status``, so a
+    laptop can point the mini's command at its private config file.
+    """
 
     transport: str
     rex_host: str
@@ -35,6 +39,7 @@ class RemoteConfig:
     ssh_target: str
     command: str = DEFAULT_COMMAND
     cwd: str | None = None
+    config: str | None = None
 
 
 def load_remote_config(path: Path | str) -> RemoteConfig:
@@ -70,6 +75,7 @@ def load_remote_config(path: Path | str) -> RemoteConfig:
         transport=transport, rex_host=str(remote.get("rex_host") or ""),
         rex_session=str(remote.get("rex_session") or ""), ssh_target=str(remote.get("ssh_target") or ""),
         command=command, cwd=str(remote["cwd"]) if remote.get("cwd") else None,
+        config=str(remote["config"]) if remote.get("config") else None,
     )
 
 
@@ -83,8 +89,11 @@ def remote_line(remote: RemoteConfig, *args: str) -> str:
     Returns:
         One shell command line; an episode link stays a single argument.
     """
-    command = shlex.join([*shlex.split(remote.command), *args])
-    return f"cd {shlex.quote(remote.cwd)} && {command}" if remote.cwd else command
+    command = shlex.split(remote.command) + list(args)
+    if remote.config:
+        command += ["--config", remote.config]
+    line = shlex.join(command)
+    return f"cd {shlex.quote(remote.cwd)} && {line}" if remote.cwd else line
 
 
 class RemoteError(Exception):

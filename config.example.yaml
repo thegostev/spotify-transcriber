@@ -75,5 +75,6 @@ remote:                                    # used on the laptop by the shim
   rex_host: "mini"                         # label from `rex hosts`; empty = this machine's server
   rex_session: "podscribe"                 # a shell session on the Mac mini
   ssh_target: "harald@mac-mini.local"      # host ASSUMED
-  cwd: "~/Documents/Obsidian/Utvikling/1 - Code/SpotifyTranscriber/bootstrap"
+  cwd: "~/Documents/Obsidian/Utvikling/1 - Code/SpotifyTranscriber/spotify-transcriber"
   command: "uv run python -m podscribe"    # what runs on the far side, before add/status
+  config: "../bootstrap/config.yaml"       # appended as --config after add/status
