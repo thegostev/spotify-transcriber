@@ -148,7 +148,6 @@ def status_screen(*lines: str) -> str:
     return "\n".join([echoed, STATUS_BEGIN, *lines, STATUS_END, "harald@mini bootstrap %"]) + "\n"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1053")
 def test_rex_send_types_the_line_and_submits_it():
     from podscribe.remote import send_add
 
@@ -160,7 +159,6 @@ def test_rex_send_types_the_line_and_submits_it():
     ]
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1053")
 def test_rex_send_omits_the_server_flag_without_a_host():
     from podscribe.remote import send_add
 
@@ -170,7 +168,6 @@ def test_rex_send_omits_the_server_flag_without_a_host():
     assert runner.calls[0][:2] == ["rex", "send"]
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1053")
 def test_rex_exit_three_names_the_session_create_command():
     import re
 
@@ -181,7 +178,6 @@ def test_rex_exit_three_names_the_session_create_command():
         send_add(rex_remote(), "https://open.spotify.com/episode/abc", run=FakeRunner(failure))
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1053")
 def test_ssh_send_runs_the_line_as_one_argument():
     from podscribe.remote import send_add
 
@@ -191,8 +187,8 @@ def test_ssh_send_runs_the_line_as_one_argument():
     assert runner.calls == [["ssh", "h@m", "--", "python -m podscribe add https://open.spotify.com/episode/abc"]]
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1053")
-def test_rex_status_polls_the_screen_until_the_end_marker():
+def test_rex_status_polls_the_screen_until_the_end_marker(monkeypatch):
+    from podscribe import remote as remote_module
     from podscribe.remote import read_status
 
     runner = FakeRunner(
@@ -200,24 +196,28 @@ def test_rex_status_polls_the_screen_until_the_end_marker():
         completed([], 0, stdout="harald@mini bootstrap % echo __podscribe_status_begin__\n"),
         completed([], 0, stdout=status_screen("done  /vault/note.md", "queued  https://x  (added 08:00)")),
     )
+    monkeypatch.setattr(remote_module.time, "monotonic", FakeClock())
+    monkeypatch.setattr(remote_module.time, "sleep", lambda seconds: None)
 
-    output = read_status(rex_remote(), run=runner, clock=FakeClock(), sleep=lambda seconds: None)
+    output = read_status(rex_remote(), run=runner)
 
     assert output == "done  /vault/note.md\nqueued  https://x  (added 08:00)"
     assert runner.calls[1][:2] == ["rex", "-S"]
     assert "--unwrap" in runner.calls[1]
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1053")
-def test_rex_status_gives_up_after_the_timeout():
+def test_rex_status_gives_up_after_the_timeout(monkeypatch):
+    from podscribe import remote as remote_module
     from podscribe.remote import RemoteError, read_status
 
+    monkeypatch.setattr(remote_module.time, "monotonic", FakeClock())
+    monkeypatch.setattr(remote_module.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(remote_module, "STATUS_TIMEOUT_SECONDS", 0.5)
     runner = FakeRunner(completed([], 0))
     with pytest.raises(RemoteError, match="podscribe"):
-        read_status(rex_remote(), run=runner, clock=FakeClock(), sleep=lambda seconds: None, timeout=0.5)
+        read_status(rex_remote(), run=runner)
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1053")
 def test_ssh_status_returns_the_text_between_the_markers():
     from podscribe.remote import read_status
 
