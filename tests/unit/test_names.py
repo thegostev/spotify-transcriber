@@ -2,7 +2,6 @@
 
 
 
-
 TITLE = "Navigating Cloud Infrastructure using AI with Marcin Wyszynski, Spacelift"
 ANALYSIS = """---
 title: "Cloud Infrastructure"
@@ -59,10 +58,9 @@ def test_correct_analysis_replaces_aliases_and_brand_casings():
 
     corrected = correct_analysis(ANALYSIS, fix)
 
-    assert "Grzemski" not in corrected
-    assert "Dzemski" not in corrected
+    assert 'guest: "Marcin Grzemski"' in corrected
     assert "SpaceLift" not in corrected
-    assert corrected.count("Marcin Wyszynski") == 2
+    assert corrected.count("Marcin Wyszynski") == 1
     assert corrected.count("Spacelift") == 1
 
 
@@ -85,3 +83,14 @@ def test_correct_analysis_replaces_unknown_guest_and_host_statements():
     corrected = correct_analysis(text, fix)
 
     assert corrected == "- **Guest:** Marcin Wyszynski.\n- **Host:** Lee Atchison.\n"
+
+
+def test_correct_analysis_leaves_quoted_evidence_spellings_alone():
+    from podscribe.names import NameFix, correct_analysis
+
+    fix = NameFix(aliases=(("Grzemski", "Wyszynski"), ("Dzemski", "Wyszynski")))
+    text = '**Fixes:** "Marcin Dzemski" -> "Grzemski". The guest "Dzemski" is Marcin Grzemski.'
+
+    corrected = correct_analysis(text, fix)
+
+    assert corrected == '**Fixes:** "Marcin Dzemski" -> "Grzemski". The guest "Dzemski" is Marcin Wyszynski.'

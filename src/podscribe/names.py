@@ -18,6 +18,7 @@ TITLE_BRAND_SEPARATOR = ", "
 MAX_NAME_WORDS = 4
 SENTENCE_PUNCTUATION = (".", "!", "?", ":")
 UNKNOWN_LABEL = re.compile(r"(?im)^(\s*(?:[-*]\s*)?\*\*(Guest|Host):\*\*)\s*unknown\b.*$")
+QUOTED_SPAN = re.compile(r'("[^"]*"|“[^”]*”)')
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,20 +102,32 @@ def _replace_unknown_labels(text: str, fix: NameFix) -> str:
     return UNKNOWN_LABEL.sub(swap, text)
 
 
+def _replace_plain(text: str, fix: NameFix) -> str:
+    """Replace alias and brand spellings in a span of unquoted prose."""
+    for wrong, right in fix.aliases:
+        text = text.replace(wrong, right)
+    if fix.brand:
+        pattern = re.compile(rf"\b{re.escape(fix.brand)}\b", re.IGNORECASE)
+        text = pattern.sub(lambda _: fix.brand, text)
+    return text
+
+
 def correct_analysis(text: str, fix: NameFix) -> str:
     """Return ``text`` with known wrong spellings and brand casing fixed.
+
+    Quoted spans are left alone: the analysis quotes the speech engine's
+    spelling as evidence in its "Speech-to-text fixes" list, and rewriting it
+    would make the list claim a correction that never happened.
 
     Args:
         text: The analyzer's Markdown.
         fix: The canonical names for this episode.
 
     Returns:
-        The Markdown with every alias and every non-canonical brand spelling
-        replaced. Whole words only, so a longer word is never rewritten.
+        The Markdown with every unquoted alias and non-canonical brand spelling
+        replaced, and every "unknown" guest or host label named.
     """
-    for wrong, right in fix.aliases:
-        text = text.replace(wrong, right)
-    if fix.brand:
-        pattern = re.compile(rf"\b{re.escape(fix.brand)}\b", re.IGNORECASE)
-        text = pattern.sub(lambda _: fix.brand, text)
-    return _replace_unknown_labels(text, fix)
+    parts = QUOTED_SPAN.split(text)
+    for index in range(0, len(parts), 2):
+        parts[index] = _replace_plain(parts[index], fix)
+    return _replace_unknown_labels("".join(parts), fix)
