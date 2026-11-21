@@ -112,6 +112,37 @@ def test_match_feed_item_parses_clock_style_durations_and_guid():
     assert item.guid == "abc"
 
 
+@pytest.mark.xfail(strict=True, reason="LAG-1071")
+def test_match_feed_item_reads_the_channel_itunes_author():
+    from podscribe.episode_page import parse_episode_page
+    from podscribe.feed import match_feed_item
+
+    ref = parse_episode_page(SPOTIFY_PAGE.read_text(encoding="utf-8"))
+
+    item = match_feed_item(FEED_XML, ref, tolerance_days=1)
+
+    assert item is not None
+    assert item.author == "Scicomm Media"
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1071")
+def test_match_feed_item_has_no_author_when_the_feed_has_none():
+    from podscribe.feed import match_feed_item
+    from podscribe.models import EpisodeRef
+
+    ref = EpisodeRef(
+        spotify_url="https://open.spotify.com/episode/abc",
+        show="Show",
+        episode_title="A Great Episode",
+        published_at=date(2022, 11, 28),
+    )
+
+    item = match_feed_item(SIMPLE_FEED, ref, tolerance_days=0)
+
+    assert item is not None
+    assert item.author == ""
+
+
 def test_match_feed_item_skips_items_without_audio():
     from podscribe.feed import match_feed_item
     from podscribe.models import EpisodeRef
