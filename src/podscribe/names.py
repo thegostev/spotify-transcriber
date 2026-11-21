@@ -8,6 +8,7 @@ brand from those sources and rewrites the spellings in the analyzer's Markdown.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -26,11 +27,13 @@ class NameFix:
         guest: Guest name from the episode title or config; empty when unknown.
         host: Host name from the feed's ``itunes:author`` or config.
         brand: Brand from the title or config, in its canonical spelling.
+        aliases: Wrong -> right spellings, in config order.
     """
 
     guest: str = ""
     host: str = ""
     brand: str = ""
+    aliases: tuple[tuple[str, str], ...] = ()
 
 
 def _text(value: object) -> str:
@@ -56,6 +59,14 @@ def _from_title(title: str) -> tuple[str, str]:
     return guest.strip(), brand.strip() if _looks_like_name(brand) else ""
 
 
+def _aliases(value: object) -> tuple[tuple[str, str], ...]:
+    """Return the configured wrong -> right spelling pairs."""
+    if not isinstance(value, Mapping):
+        return ()
+    pairs = ((str(wrong).strip(), str(right).strip()) for wrong, right in value.items())
+    return tuple((wrong, right) for wrong, right in pairs if wrong and right)
+
+
 def derive_names(episode_title: str, author: str = "", rules: Mapping[str, Any] | None = None) -> NameFix:
     """Return the canonical names for one episode.
 
@@ -63,7 +74,7 @@ def derive_names(episode_title: str, author: str = "", rules: Mapping[str, Any] 
         episode_title: The title as Spotify shows it.
         author: The feed's channel ``itunes:author``.
         rules: Optional ``analysis.names`` config: ``guest``, ``host`` and
-            ``brand`` overrides.
+            ``brand`` overrides plus an ``aliases`` wrong -> right mapping.
 
     Returns:
         The names to write, with config overrides taking precedence.
@@ -74,4 +85,24 @@ def derive_names(episode_title: str, author: str = "", rules: Mapping[str, Any] 
         guest=_text(settings.get("guest")) or guest,
         host=_text(settings.get("host")) or author.strip(),
         brand=_text(settings.get("brand") or brand),
+        aliases=_aliases(settings.get("aliases")),
     )
+
+
+def correct_analysis(text: str, fix: NameFix) -> str:
+    """Return ``text`` with known wrong spellings and brand casing fixed.
+
+    Args:
+        text: The analyzer's Markdown.
+        fix: The canonical names for this episode.
+
+    Returns:
+        The Markdown with every alias and every non-canonical brand spelling
+        replaced. Whole words only, so a longer word is never rewritten.
+    """
+    for wrong, right in fix.aliases:
+        text = text.replace(wrong, right)
+    if fix.brand:
+        pattern = re.compile(rf"\b{re.escape(fix.brand)}\b", re.IGNORECASE)
+        text = pattern.sub(lambda _: fix.brand, text)
+    return text

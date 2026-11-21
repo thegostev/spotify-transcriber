@@ -1,6 +1,5 @@
 """Tests for canonical names applied to an analyzer's Markdown."""
 
-import pytest
 
 
 TITLE = "Navigating Cloud Infrastructure using AI with Marcin Wyszynski, Spacelift"
@@ -38,7 +37,6 @@ def test_derive_names_needs_a_with_phrase_to_find_a_guest():
     assert names.host == "The Publisher"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1071")
 def test_derive_names_takes_configured_overrides_and_aliases():
     from podscribe.names import derive_names
 
@@ -53,7 +51,6 @@ def test_derive_names_takes_configured_overrides_and_aliases():
     assert dict(names.aliases) == {"Grzemski": "Wyszynski"}
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1071")
 def test_correct_analysis_replaces_aliases_and_brand_casings():
     from podscribe.names import NameFix, correct_analysis
 
@@ -68,7 +65,6 @@ def test_correct_analysis_replaces_aliases_and_brand_casings():
     assert corrected.count("Spacelift") == 1
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1071")
 def test_correct_analysis_leaves_unrelated_names_alone():
     from podscribe.names import NameFix, correct_analysis
 
