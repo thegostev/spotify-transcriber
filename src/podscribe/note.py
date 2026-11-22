@@ -160,7 +160,10 @@ def _strip_analyzer_headers(text: str) -> str:
 
 def _missing_title(value: object) -> bool:
     """Return whether an analyzer title is absent or says it had no episode title."""
-    return not isinstance(value, str) or not value.strip() or value.strip().lower().startswith("unknown")
+    if not isinstance(value, str) or not value.strip():
+        return True
+    text = value.strip()
+    return text.lower().startswith("unknown") or "{{" in text
 
 
 def _split_leading_frontmatter(text: str) -> tuple[dict[str, object], str]:
@@ -168,8 +171,8 @@ def _split_leading_frontmatter(text: str) -> tuple[dict[str, object], str]:
 
     Analyzers may emit their own ``---`` block (the Podcast mode does: title,
     guest, host, topics). The note already has frontmatter, so the block is
-    promoted into it and removed from the body. Text without a valid block is
-    returned unchanged.
+    promoted into it and removed from the body. A leading block that is not
+    valid YAML is dropped from the body rather than leaked into the note.
     """
     lines = text.splitlines(keepends=True)
     if not lines or lines[0].strip() != FRONTMATTER_FENCE:
@@ -180,7 +183,7 @@ def _split_leading_frontmatter(text: str) -> tuple[dict[str, object], str]:
         try:
             data = yaml.safe_load("".join(lines[1:index]))
         except yaml.YAMLError:
-            return {}, text
+            return {}, "".join(lines[index + 1 :])
         if isinstance(data, dict):
             return data, "".join(lines[index + 1 :])
         return {}, text

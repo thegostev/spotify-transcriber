@@ -2,8 +2,6 @@
 
 from datetime import date, datetime
 
-import pytest
-
 SPOTIFY_URL = "https://open.spotify.com/episode/abc"
 ANALYSIS = "## Themes\n\nTrust and repair."
 
@@ -190,7 +188,6 @@ def test_render_analysis_note_replaces_an_unknown_analyzer_title():
     assert "episode title not provided" not in text
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1071")
 def test_render_analysis_note_drops_a_malformed_analyzer_block():
     from podscribe.names import NameFix
     from podscribe.note import render_analysis_note
@@ -219,7 +216,6 @@ def test_render_analysis_note_drops_a_malformed_analyzer_block():
     assert 'analyzer_title: "An Episode"' in text
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1071")
 def test_render_analysis_note_replaces_a_placeholder_title():
     from podscribe.names import NameFix
     from podscribe.note import render_analysis_note
