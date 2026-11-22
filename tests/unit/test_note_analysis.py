@@ -1,8 +1,8 @@
 """Tests for rendering the analysis note and linking it from the episode note."""
 
-
-
 from datetime import date, datetime
+
+import pytest
 
 SPOTIFY_URL = "https://open.spotify.com/episode/abc"
 ANALYSIS = "## Themes\n\nTrust and repair."
@@ -188,3 +188,52 @@ def test_render_analysis_note_replaces_an_unknown_analyzer_title():
 
     assert 'analyzer_title: "An Episode"' in text
     assert "episode title not provided" not in text
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1071")
+def test_render_analysis_note_drops_a_malformed_analyzer_block():
+    from podscribe.names import NameFix
+    from podscribe.note import render_analysis_note
+
+    analysis = (
+        "---\n"
+        'title: "{{EPISODE_TITLE}}"\n'
+        'guest: "Marcin Wyszynski (spelled "Grzemski" in the transcript)"\n'
+        "---\n"
+        "\n## TL;DR\n- One idea.\n"
+    )
+
+    text = render_analysis_note(
+        ref=ref(),
+        analyzer="superwhisper",
+        analysis=analysis,
+        analyzed_at=None,
+        episode_note="26-11-18 An Episode.md",
+        names=NameFix(guest="Marcin Wyszynski", host="Lee Atchison"),
+    )
+    _, body = split_frontmatter(text)
+
+    assert body.strip() == "## TL;DR\n- One idea."
+    assert text.count("guest: ") == 1
+    assert "{{EPISODE_TITLE}}" not in text
+    assert 'analyzer_title: "An Episode"' in text
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1071")
+def test_render_analysis_note_replaces_a_placeholder_title():
+    from podscribe.names import NameFix
+    from podscribe.note import render_analysis_note
+
+    analysis = '---\ntitle: "{{EPISODE_TITLE}}"\n---\n\n## TL;DR\n- One idea.\n'
+
+    text = render_analysis_note(
+        ref=ref(),
+        analyzer="superwhisper",
+        analysis=analysis,
+        analyzed_at=None,
+        episode_note="26-11-18 An Episode.md",
+        names=NameFix(),
+    )
+
+    assert 'analyzer_title: "An Episode"' in text
+    assert "{{EPISODE_TITLE}}" not in text
