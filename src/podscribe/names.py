@@ -19,7 +19,6 @@ MAX_NAME_WORDS = 4
 SENTENCE_PUNCTUATION = (".", "!", "?", ":")
 UNKNOWN_LABEL = re.compile(r"(?im)^(\s*(?:[-*]\s*)?\*\*(Guest|Host):\*\*)\s*unknown\b.*$")
 QUOTED_SPAN = re.compile(r'("[^"]*"|“[^”]*”)')
-ARROW = re.compile(r"->|→")
 TRANSCRIPT_CITED = re.compile(r"transcript|transcribed", re.IGNORECASE)
 
 
@@ -114,28 +113,20 @@ def _replace_names(text: str, fix: NameFix) -> str:
     return text
 
 
-def _replace_unquoted(text: str, fix: NameFix) -> str:
-    """Replace spellings outside quoted spans, keeping what a quote cites."""
-    parts = QUOTED_SPAN.split(text)
-    for index in range(0, len(parts), 2):
-        parts[index] = _replace_names(parts[index], fix)
-    return "".join(parts)
-
-
 def _correct_line(line: str, fix: NameFix) -> str:
     """Correct one line, keeping the spellings it cites as the transcript's.
 
-    A line that reports what the transcript said, or the source half of an
-    explicit ``"wrong" -> "right"`` fix entry, is evidence: only its unquoted
-    prose is corrected.
+    Quoted text is corrected too, unless the line reports what the transcript
+    said or the quote is the source half of a ``"wrong" -> "right"`` entry.
     """
-    if TRANSCRIPT_CITED.search(line):
-        return _replace_unquoted(line, fix)
-    arrows = list(ARROW.finditer(line))
-    if arrows:
-        end = arrows[-1].end()
-        return line[:end] + _replace_names(line[end:], fix)
-    return _replace_names(line, fix)
+    cites_transcript = bool(TRANSCRIPT_CITED.search(line))
+    parts = QUOTED_SPAN.split(line)
+    for index in range(len(parts)):
+        quoted = index % 2 == 1
+        followed_by_arrow = index + 1 < len(parts) and parts[index + 1].lstrip().startswith(("->", "\u2192"))
+        if not quoted or not (cites_transcript or followed_by_arrow):
+            parts[index] = _replace_names(parts[index], fix)
+    return "".join(parts)
 
 
 def correct_analysis(text: str, fix: NameFix) -> str:

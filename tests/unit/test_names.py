@@ -1,6 +1,5 @@
 """Tests for canonical names applied to an analyzer's Markdown."""
 
-import pytest
 
 TITLE = "Navigating Cloud Infrastructure using AI with Marcin Wyszynski, Spacelift"
 ANALYSIS = """---
@@ -115,7 +114,6 @@ def test_correct_analysis_keeps_the_source_side_of_a_correction():
     assert corrected == '- **Fixes:** "Marcin Grzemski" -> "Wyszynski".\n'
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1071")
 def test_correct_analysis_fixes_names_across_a_prose_arrow():
     from podscribe.names import NameFix, correct_analysis
 
