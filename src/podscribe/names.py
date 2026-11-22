@@ -103,13 +103,23 @@ def _replace_unknown_labels(text: str, fix: NameFix) -> str:
     return UNKNOWN_LABEL.sub(swap, text)
 
 
+def _brand_pattern(brand: str) -> re.Pattern[str]:
+    """Return a pattern for ``brand`` that also matches its spaced spelling.
+
+    Every space inside the brand is optional and a space may appear between
+    any two letters, so "Spacelift" matches "Spacelift", "SpaceLift" and
+    "Space Lift"; "OpenTofu" also matches "Open Tofu".
+    """
+    letters = " *".join(re.escape(character) for character in brand)
+    return re.compile(rf"\b{letters}\b", re.IGNORECASE)
+
+
 def _replace_names(text: str, fix: NameFix) -> str:
     """Replace alias and brand spellings everywhere in one span of text."""
     for wrong, right in fix.aliases:
         text = text.replace(wrong, right)
     if fix.brand:
-        pattern = re.compile(rf"\b{re.escape(fix.brand)}\b", re.IGNORECASE)
-        text = pattern.sub(lambda _: fix.brand, text)
+        text = _brand_pattern(fix.brand).sub(lambda _: fix.brand, text)
     return text
 
 
