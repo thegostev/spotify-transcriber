@@ -19,6 +19,8 @@ MAX_NAME_WORDS = 4
 SENTENCE_PUNCTUATION = (".", "!", "?", ":")
 UNKNOWN_LABEL = re.compile(r"(?im)^(\s*(?:[-*]\s*)?\*\*(Guest|Host):\*\*)\s*unknown\b.*$")
 QUOTED_SPAN = re.compile(r'("[^"]*"|“[^”]*”)')
+ARROW = re.compile(r"->|→")
+TRANSCRIPT_CITED = re.compile(r"transcript|transcribed", re.IGNORECASE)
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,8 +104,8 @@ def _replace_unknown_labels(text: str, fix: NameFix) -> str:
     return UNKNOWN_LABEL.sub(swap, text)
 
 
-def _replace_plain(text: str, fix: NameFix) -> str:
-    """Replace alias and brand spellings in a span of unquoted prose."""
+def _replace_names(text: str, fix: NameFix) -> str:
+    """Replace alias and brand spellings everywhere in one span of text."""
     for wrong, right in fix.aliases:
         text = text.replace(wrong, right)
     if fix.brand:
@@ -112,22 +114,45 @@ def _replace_plain(text: str, fix: NameFix) -> str:
     return text
 
 
+def _replace_unquoted(text: str, fix: NameFix) -> str:
+    """Replace spellings outside quoted spans, keeping what a quote cites."""
+    parts = QUOTED_SPAN.split(text)
+    for index in range(0, len(parts), 2):
+        parts[index] = _replace_names(parts[index], fix)
+    return "".join(parts)
+
+
+def _correct_line(line: str, fix: NameFix) -> str:
+    """Correct one line, keeping the spellings it cites as the transcript's.
+
+    A line that reports what the transcript said, or the source half of an
+    explicit ``"wrong" -> "right"`` fix entry, is evidence: only its unquoted
+    prose is corrected.
+    """
+    if TRANSCRIPT_CITED.search(line):
+        return _replace_unquoted(line, fix)
+    arrows = list(ARROW.finditer(line))
+    if arrows:
+        end = arrows[-1].end()
+        return line[:end] + _replace_names(line[end:], fix)
+    return _replace_names(line, fix)
+
+
 def correct_analysis(text: str, fix: NameFix) -> str:
     """Return ``text`` with known wrong spellings and brand casing fixed.
 
-    Quoted spans are left alone: the analysis quotes the speech engine's
-    spelling as evidence in its "Speech-to-text fixes" list, and rewriting it
-    would make the list claim a correction that never happened.
+    Corrections reach direct quotes too, because the speech engine misspells
+    names there. Two cited spellings stay as they are: what the analysis says
+    the transcript showed, and the source half of a ``"wrong" -> "right"``
+    entry.
 
     Args:
         text: The analyzer's Markdown.
         fix: The canonical names for this episode.
 
     Returns:
-        The Markdown with every unquoted alias and non-canonical brand spelling
-        replaced, and every "unknown" guest or host label named.
+        The Markdown with every alias and non-canonical brand spelling replaced,
+        and every "unknown" guest or host label named.
     """
-    parts = QUOTED_SPAN.split(text)
-    for index in range(0, len(parts), 2):
-        parts[index] = _replace_plain(parts[index], fix)
-    return _replace_unknown_labels("".join(parts), fix)
+    corrected = "".join(_correct_line(line, fix) for line in text.splitlines(keepends=True))
+    return _replace_unknown_labels(corrected, fix)

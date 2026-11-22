@@ -1,6 +1,5 @@
 """Tests for canonical names applied to an analyzer's Markdown."""
 
-import pytest
 
 TITLE = "Navigating Cloud Infrastructure using AI with Marcin Wyszynski, Spacelift"
 ANALYSIS = """---
@@ -58,9 +57,9 @@ def test_correct_analysis_replaces_aliases_and_brand_casings():
 
     corrected = correct_analysis(ANALYSIS, fix)
 
-    assert 'guest: "Marcin Grzemski"' in corrected
+    assert 'guest: "Marcin Wyszynski"' in corrected
     assert "SpaceLift" not in corrected
-    assert corrected.count("Marcin Wyszynski") == 1
+    assert corrected.count("Marcin Wyszynski") == 2
     assert corrected.count("Spacelift") == 1
 
 
@@ -85,7 +84,6 @@ def test_correct_analysis_replaces_unknown_guest_and_host_statements():
     assert corrected == "- **Guest:** Marcin Wyszynski.\n- **Host:** Lee Atchison.\n"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1071")
 def test_correct_analysis_fixes_a_name_inside_a_direct_quote():
     from podscribe.names import NameFix, correct_analysis
 
@@ -106,7 +104,6 @@ def test_correct_analysis_keeps_a_quoted_transcript_spelling():
     assert corrected == '- **Guest:** Marcin Wyszynski (the transcript also shows "Dzemski").\n'
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1071")
 def test_correct_analysis_keeps_the_source_side_of_a_correction():
     from podscribe.names import NameFix, correct_analysis
 
