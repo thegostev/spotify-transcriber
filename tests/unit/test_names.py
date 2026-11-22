@@ -1,6 +1,6 @@
 """Tests for canonical names applied to an analyzer's Markdown."""
 
-
+import pytest
 
 TITLE = "Navigating Cloud Infrastructure using AI with Marcin Wyszynski, Spacelift"
 ANALYSIS = """---
@@ -85,12 +85,33 @@ def test_correct_analysis_replaces_unknown_guest_and_host_statements():
     assert corrected == "- **Guest:** Marcin Wyszynski.\n- **Host:** Lee Atchison.\n"
 
 
-def test_correct_analysis_leaves_quoted_evidence_spellings_alone():
+@pytest.mark.xfail(strict=True, reason="LAG-1071")
+def test_correct_analysis_fixes_a_name_inside_a_direct_quote():
     from podscribe.names import NameFix, correct_analysis
 
-    fix = NameFix(aliases=(("Grzemski", "Wyszynski"), ("Dzemski", "Wyszynski")))
-    text = '**Fixes:** "Marcin Dzemski" -> "Grzemski". The guest "Dzemski" is Marcin Grzemski.'
+    text = '> "I asked Marcin Grzemski about the provider."\n'
 
-    corrected = correct_analysis(text, fix)
+    corrected = correct_analysis(text, NameFix(aliases=(("Grzemski", "Wyszynski"),)))
 
-    assert corrected == '**Fixes:** "Marcin Dzemski" -> "Grzemski". The guest "Dzemski" is Marcin Wyszynski.'
+    assert corrected == '> "I asked Marcin Wyszynski about the provider."\n'
+
+
+def test_correct_analysis_keeps_a_quoted_transcript_spelling():
+    from podscribe.names import NameFix, correct_analysis
+
+    text = '- **Guest:** Marcin Grzemski (the transcript also shows "Dzemski").\n'
+
+    corrected = correct_analysis(text, NameFix(aliases=(("Grzemski", "Wyszynski"), ("Dzemski", "Wyszynski"))))
+
+    assert corrected == '- **Guest:** Marcin Wyszynski (the transcript also shows "Dzemski").\n'
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1071")
+def test_correct_analysis_keeps_the_source_side_of_a_correction():
+    from podscribe.names import NameFix, correct_analysis
+
+    text = '- **Fixes:** "Marcin Grzemski" -> "Grzemski".\n'
+
+    corrected = correct_analysis(text, NameFix(aliases=(("Grzemski", "Wyszynski"),)))
+
+    assert corrected == '- **Fixes:** "Marcin Grzemski" -> "Wyszynski".\n'
