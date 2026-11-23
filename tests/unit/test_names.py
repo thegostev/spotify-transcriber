@@ -1,5 +1,6 @@
 """Tests for canonical names applied to an analyzer's Markdown."""
 
+import pytest
 
 TITLE = "Navigating Cloud Infrastructure using AI with Marcin Wyszynski, Spacelift"
 ANALYSIS = """---
@@ -132,3 +133,28 @@ def test_correct_analysis_fixes_a_spaced_brand_spelling():
     corrected = correct_analysis(text, NameFix(brand="Spacelift"))
 
     assert corrected == "Spacelift and Spacelift intent ship today; SpaceLiftoff is not the brand.\n"
+
+
+D2DO_TITLE = (
+    "D2DO298: Spacelift Intelligence: Infrastructure Keeping Pace with AI-Enhanced Development (Sponsored)"
+)
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1071")
+def test_derive_names_ignores_a_topic_with_and_a_publisher_author():
+    from podscribe.names import derive_names
+
+    names = derive_names(D2DO_TITLE, "Packet Pushers", show="The Everything Feed - All Packet Pushers Pods")
+
+    assert names.guest == ""
+    assert names.brand == ""
+    assert names.host == ""
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1071")
+def test_derive_names_keeps_a_person_author_as_host():
+    from podscribe.names import derive_names
+
+    names = derive_names("An Episode", "Lee Atchison", show="Software Architecture Insights")
+
+    assert names.host == "Lee Atchison"
