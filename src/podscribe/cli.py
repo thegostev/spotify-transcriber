@@ -229,7 +229,9 @@ def add_episode(
             detail=str(exc),
         )
     has_analysis = bool(result.analysis)
-    canonical = derive_names(ref.episode_title, item.author, config.analysis.get("names"))
+    canonical = derive_names(
+        ref.episode_title, item.author, config.analysis.get("names"), show=ref.show
+    )
     analysis = correct_analysis(result.analysis, canonical) if result.analysis else None
     stamp = now or datetime.now()
     transcript = result.transcript

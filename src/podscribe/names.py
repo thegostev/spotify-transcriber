@@ -44,22 +44,57 @@ def _text(value: object) -> str:
     return value.strip() if isinstance(value, str) else ""
 
 
-def _looks_like_name(value: str) -> bool:
-    """Return whether ``value`` reads as a name or brand, not a sentence."""
-    return bool(value.split()) and len(value.split()) <= MAX_NAME_WORDS and not value.endswith(SENTENCE_PUNCTUATION)
+NAME_WORD = re.compile(r"^[A-Z][a-z.'\u2019]*$")
+BRAND_FORBIDDEN = "()[]{}"
+
+
+def _is_person_name(value: str) -> bool:
+    """Return whether ``value`` reads as a person's name.
+
+    "Marcin Wyszynski" passes; "AI-Enhanced Development (Sponsored)" and
+    "A and B" do not.
+    """
+    words = value.split()
+    return 2 <= len(words) <= MAX_NAME_WORDS and all(NAME_WORD.match(word) for word in words)
+
+
+def _is_brand(value: str) -> bool:
+    """Return whether ``value`` reads as a product or company name."""
+    if not value or not value[0].isupper() or any(character in value for character in BRAND_FORBIDDEN):
+        return False
+    return not any(character.isdigit() for character in value) and len(value.split()) <= MAX_NAME_WORDS
 
 
 def _from_title(title: str) -> tuple[str, str]:
-    """Return ``(guest, brand)`` from a title shaped ``<topic> with <Guest>, <Brand>``."""
+    """Return ``(guest, brand)`` from ``<topic> with <Guest>, <Brand>``.
+
+    The marker is trusted only when the tail reads as a person's name, since a
+    topic can contain "with" too ("Keeping Pace with AI-Enhanced Development").
+    """
     _, marker, tail = title.rpartition(TITLE_GUEST_MARKER)
     if not marker:
         return "", ""
     guest, separator, brand = tail.rpartition(TITLE_BRAND_SEPARATOR)
     if not separator:
-        return (tail.strip(), "") if _looks_like_name(tail) else ("", "")
-    if not _looks_like_name(guest):
+        return (tail.strip(), "") if _is_person_name(tail.strip()) else ("", "")
+    if not _is_person_name(guest.strip()):
         return "", ""
-    return guest.strip(), brand.strip() if _looks_like_name(brand) else ""
+    return guest.strip(), brand.strip() if _is_brand(brand.strip()) else ""
+
+
+def _host_from_author(author: str, show: str) -> str:
+    """Return the feed author when it names a person, not the publisher.
+
+    An author whose words also appear in the show name ("Packet Pushers" in
+    "The Everything Feed - All Packet Pushers Pods") is the publisher.
+    """
+    author = author.strip()
+    if not _is_person_name(author):
+        return ""
+    show_words = {word.casefold() for word in show.split()}
+    if any(word.casefold() in show_words for word in author.split()):
+        return ""
+    return author
 
 
 def _aliases(value: object) -> tuple[tuple[str, str], ...]:
@@ -70,7 +105,9 @@ def _aliases(value: object) -> tuple[tuple[str, str], ...]:
     return tuple((wrong, right) for wrong, right in pairs if wrong and right)
 
 
-def derive_names(episode_title: str, author: str = "", rules: Mapping[str, Any] | None = None) -> NameFix:
+def derive_names(
+    episode_title: str, author: str = "", rules: Mapping[str, Any] | None = None, *, show: str = ""
+) -> NameFix:
     """Return the canonical names for one episode.
 
     Args:
@@ -78,6 +115,7 @@ def derive_names(episode_title: str, author: str = "", rules: Mapping[str, Any] 
         author: The feed's channel ``itunes:author``.
         rules: Optional ``analysis.names`` config: ``guest``, ``host`` and
             ``brand`` overrides plus an ``aliases`` wrong -> right mapping.
+        show: The show name, used to tell a host from a publisher.
 
     Returns:
         The names to write, with config overrides taking precedence.
@@ -86,7 +124,7 @@ def derive_names(episode_title: str, author: str = "", rules: Mapping[str, Any] 
     guest, brand = _from_title(episode_title)
     return NameFix(
         guest=_text(settings.get("guest")) or guest,
-        host=_text(settings.get("host")) or author.strip(),
+        host=_text(settings.get("host")) or _host_from_author(author, show),
         brand=_text(settings.get("brand") or brand),
         aliases=_aliases(settings.get("aliases")),
     )

@@ -1,6 +1,5 @@
 """Tests for canonical names applied to an analyzer's Markdown."""
 
-import pytest
 
 TITLE = "Navigating Cloud Infrastructure using AI with Marcin Wyszynski, Spacelift"
 ANALYSIS = """---
@@ -140,7 +139,6 @@ D2DO_TITLE = (
 )
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1071")
 def test_derive_names_ignores_a_topic_with_and_a_publisher_author():
     from podscribe.names import derive_names
 
@@ -151,7 +149,6 @@ def test_derive_names_ignores_a_topic_with_and_a_publisher_author():
     assert names.host == ""
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1071")
 def test_derive_names_keeps_a_person_author_as_host():
     from podscribe.names import derive_names
 
