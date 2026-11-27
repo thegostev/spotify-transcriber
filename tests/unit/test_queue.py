@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
+import pytest
+
 URL = "https://open.spotify.com/episode/abc123"
 TRACKED_URLS = (
     "https://open.spotify.com/episode/abc123?si=e72ca56168534d0c",
@@ -118,6 +120,26 @@ def test_enqueue_keeps_a_different_episode_as_a_second_job(config_factory):
         "https://open.spotify.com/episode/def456",
         URL,
     ]
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1061")
+def test_enqueue_recognises_a_stored_link_with_a_tracking_parameter(config_factory):
+    import sqlite3
+
+    from podscribe.queue import enqueue, list_jobs, open_store
+
+    store = open_store(config_factory().paths["data_dir"])
+    list_jobs(store)
+    with sqlite3.connect(store.path) as connection:
+        connection.execute(
+            "INSERT INTO jobs (episode_url, state, created_at) VALUES (?, ?, ?)",
+            ("https://open.spotify.com/episode/abc123?si=e72ca56168534d0c", "done", "2026-11-21T08:08:00"),
+        )
+
+    result = enqueue(store, URL)
+
+    assert result.status == "already_done"
+    assert result.job.episode_url == URL
 
 
 def test_claim_next_marks_the_oldest_job_running(config_factory):
