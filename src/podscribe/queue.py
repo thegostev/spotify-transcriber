@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from podscribe.links import canonical_episode_url
+
 QUEUE_FILENAME = "queue.db"
 QUEUED = "queued"
 RUNNING = "running"
@@ -96,21 +98,22 @@ def enqueue(store: Store, url: str, *, now: datetime | None = None) -> EnqueueRe
 
     Args:
         store: The queue database.
-        url: Spotify episode link; unique in the queue.
+        url: Episode link; its canonical form is unique in the queue.
         now: Creation time; defaults to the current time.
 
     Returns:
         ``new`` or ``retry`` with a queued job, or ``already_done``,
         ``already_queued`` or ``already_running`` with the existing job.
     """
+    canonical = canonical_episode_url(url)
     connection = _connect(store)
     try:
         connection.execute("BEGIN IMMEDIATE")
-        row = connection.execute("SELECT * FROM jobs WHERE episode_url = ?", (url,)).fetchone()
+        row = connection.execute("SELECT * FROM jobs WHERE episode_url = ?", (canonical,)).fetchone()
         if row is None:
             cursor = connection.execute(
                 "INSERT INTO jobs (episode_url, state, created_at) VALUES (?, ?, ?)",
-                (url, QUEUED, _timestamp(now)),
+                (canonical, QUEUED, _timestamp(now)),
             )
             row = connection.execute("SELECT * FROM jobs WHERE id = ?", (cursor.lastrowid,)).fetchone()
             status = "new"

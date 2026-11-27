@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-import pytest
-
 from podscribe.analyzer import AnalyzerResult
 from podscribe.config import Config
 from podscribe.models import EpisodeRef, Segment, Transcript
@@ -283,7 +281,6 @@ def test_main_add_reports_an_already_done_link(tmp_path, capsys):
     assert capsys.readouterr().out == f"already done: {tmp_path / 'out' / 'episode.md'}\n"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1061")
 def test_main_add_treats_two_shares_of_one_episode_as_one_job(tmp_path, capsys):
     from podscribe.cli import main
 

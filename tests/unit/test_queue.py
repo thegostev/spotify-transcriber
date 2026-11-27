@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-import pytest
-
 URL = "https://open.spotify.com/episode/abc123"
 TRACKED_URLS = (
     "https://open.spotify.com/episode/abc123?si=e72ca56168534d0c",
@@ -94,7 +92,6 @@ def test_enqueue_retries_a_failed_link(config_factory):
     assert result.job.finished_at is None
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1061")
 def test_enqueue_collapses_a_tracked_episode_link_to_one_job(config_factory):
     from podscribe.queue import enqueue, list_jobs, open_store
 
@@ -108,7 +105,6 @@ def test_enqueue_collapses_a_tracked_episode_link_to_one_job(config_factory):
     assert [job.episode_url for job in list_jobs(store)] == [URL]
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1061")
 def test_enqueue_keeps_a_different_episode_as_a_second_job(config_factory):
     from podscribe.queue import enqueue, list_jobs, open_store
 
