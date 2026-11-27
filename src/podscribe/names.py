@@ -1,0 +1,197 @@
+"""Canonical names for an analysis, taken from the episode and feed metadata.
+
+Superwhisper substitutes no metadata into a Custom Mode prompt, so the analyzer
+never sees the episode title or the feed's author and copies the speech
+engine's spelling of names. This module recovers the canonical guest, host and
+brand from those sources and rewrites the spellings in the analyzer's Markdown.
+"""
+
+from __future__ import annotations
+
+import re
+from collections.abc import Mapping
+from dataclasses import dataclass
+from typing import Any
+
+TITLE_GUEST_MARKER = " with "
+TITLE_BRAND_SEPARATOR = ", "
+MAX_NAME_WORDS = 4
+SENTENCE_PUNCTUATION = (".", "!", "?", ":")
+UNKNOWN_LABEL = re.compile(r"(?im)^(\s*(?:[-*]\s*)?\*\*(Guest|Host):\*\*)\s*unknown\b.*$")
+QUOTED_SPAN = re.compile(r'("[^"]*"|“[^”]*”)')
+TRANSCRIPT_CITED = re.compile(r"transcript|transcribed", re.IGNORECASE)
+
+
+@dataclass(frozen=True, slots=True)
+class NameFix:
+    """Canonical names and spelling corrections for one analysis.
+
+    Attributes:
+        guest: Guest name from the episode title or config; empty when unknown.
+        host: Host name from the feed's ``itunes:author`` or config.
+        brand: Brand from the title or config, in its canonical spelling.
+        aliases: Wrong -> right spellings, in config order.
+    """
+
+    guest: str = ""
+    host: str = ""
+    brand: str = ""
+    aliases: tuple[tuple[str, str], ...] = ()
+
+
+def _text(value: object) -> str:
+    """Return a stripped string for a config value, empty for anything else."""
+    return value.strip() if isinstance(value, str) else ""
+
+
+NAME_WORD = re.compile(r"^[A-Z][a-z.'\u2019]*$")
+BRAND_FORBIDDEN = "()[]{}"
+
+
+def _is_person_name(value: str) -> bool:
+    """Return whether ``value`` reads as a person's name.
+
+    "Marcin Wyszynski" passes; "AI-Enhanced Development (Sponsored)" and
+    "A and B" do not.
+    """
+    words = value.split()
+    return 2 <= len(words) <= MAX_NAME_WORDS and all(NAME_WORD.match(word) for word in words)
+
+
+def _is_brand(value: str) -> bool:
+    """Return whether ``value`` reads as a product or company name."""
+    if not value or not value[0].isupper() or any(character in value for character in BRAND_FORBIDDEN):
+        return False
+    return not any(character.isdigit() for character in value) and len(value.split()) <= MAX_NAME_WORDS
+
+
+def _from_title(title: str) -> tuple[str, str]:
+    """Return ``(guest, brand)`` from ``<topic> with <Guest>, <Brand>``.
+
+    The marker is trusted only when the tail reads as a person's name, since a
+    topic can contain "with" too ("Keeping Pace with AI-Enhanced Development").
+    """
+    _, marker, tail = title.rpartition(TITLE_GUEST_MARKER)
+    if not marker:
+        return "", ""
+    guest, separator, brand = tail.rpartition(TITLE_BRAND_SEPARATOR)
+    if not separator:
+        return (tail.strip(), "") if _is_person_name(tail.strip()) else ("", "")
+    if not _is_person_name(guest.strip()):
+        return "", ""
+    return guest.strip(), brand.strip() if _is_brand(brand.strip()) else ""
+
+
+def _host_from_author(author: str, show: str) -> str:
+    """Return the feed author when it names a person, not the publisher.
+
+    An author whose words also appear in the show name ("Packet Pushers" in
+    "The Everything Feed - All Packet Pushers Pods") is the publisher.
+    """
+    author = author.strip()
+    if not _is_person_name(author):
+        return ""
+    show_words = {word.casefold() for word in show.split()}
+    if any(word.casefold() in show_words for word in author.split()):
+        return ""
+    return author
+
+
+def _aliases(value: object) -> tuple[tuple[str, str], ...]:
+    """Return the configured wrong -> right spelling pairs."""
+    if not isinstance(value, Mapping):
+        return ()
+    pairs = ((str(wrong).strip(), str(right).strip()) for wrong, right in value.items())
+    return tuple((wrong, right) for wrong, right in pairs if wrong and right)
+
+
+def derive_names(
+    episode_title: str, author: str = "", rules: Mapping[str, Any] | None = None, *, show: str = ""
+) -> NameFix:
+    """Return the canonical names for one episode.
+
+    Args:
+        episode_title: The title as Spotify shows it.
+        author: The feed's channel ``itunes:author``.
+        rules: Optional ``analysis.names`` config: ``guest``, ``host`` and
+            ``brand`` overrides plus an ``aliases`` wrong -> right mapping.
+        show: The show name, used to tell a host from a publisher.
+
+    Returns:
+        The names to write, with config overrides taking precedence.
+    """
+    settings = rules if isinstance(rules, Mapping) else {}
+    guest, brand = _from_title(episode_title)
+    return NameFix(
+        guest=_text(settings.get("guest")) or guest,
+        host=_text(settings.get("host")) or _host_from_author(author, show),
+        brand=_text(settings.get("brand") or brand),
+        aliases=_aliases(settings.get("aliases")),
+    )
+
+
+def _replace_unknown_labels(text: str, fix: NameFix) -> str:
+    """Write the canonical name where the analysis says a role is unknown."""
+    names = {"guest": fix.guest, "host": fix.host}
+
+    def swap(match: re.Match[str]) -> str:
+        name = names[match.group(2).lower()]
+        return f"{match.group(1)} {name}." if name else match.group(0)
+
+    return UNKNOWN_LABEL.sub(swap, text)
+
+
+def _brand_pattern(brand: str) -> re.Pattern[str]:
+    """Return a pattern for ``brand`` that also matches its spaced spelling.
+
+    Every space inside the brand is optional and a space may appear between
+    any two letters, so "Spacelift" matches "Spacelift", "SpaceLift" and
+    "Space Lift"; "OpenTofu" also matches "Open Tofu".
+    """
+    letters = " *".join(re.escape(character) for character in brand)
+    return re.compile(rf"\b{letters}\b", re.IGNORECASE)
+
+
+def _replace_names(text: str, fix: NameFix) -> str:
+    """Replace alias and brand spellings everywhere in one span of text."""
+    for wrong, right in fix.aliases:
+        text = text.replace(wrong, right)
+    if fix.brand:
+        text = _brand_pattern(fix.brand).sub(lambda _: fix.brand, text)
+    return text
+
+
+def _correct_line(line: str, fix: NameFix) -> str:
+    """Correct one line, keeping the spellings it cites as the transcript's.
+
+    Quoted text is corrected too, unless the line reports what the transcript
+    said or the quote is the source half of a ``"wrong" -> "right"`` entry.
+    """
+    cites_transcript = bool(TRANSCRIPT_CITED.search(line))
+    parts = QUOTED_SPAN.split(line)
+    for index in range(len(parts)):
+        quoted = index % 2 == 1
+        followed_by_arrow = index + 1 < len(parts) and parts[index + 1].lstrip().startswith(("->", "\u2192"))
+        if not quoted or not (cites_transcript or followed_by_arrow):
+            parts[index] = _replace_names(parts[index], fix)
+    return "".join(parts)
+
+
+def correct_analysis(text: str, fix: NameFix) -> str:
+    """Return ``text`` with known wrong spellings and brand casing fixed.
+
+    Corrections reach direct quotes too, because the speech engine misspells
+    names there. Two cited spellings stay as they are: what the analysis says
+    the transcript showed, and the source half of a ``"wrong" -> "right"``
+    entry.
+
+    Args:
+        text: The analyzer's Markdown.
+        fix: The canonical names for this episode.
+
+    Returns:
+        The Markdown with every alias and non-canonical brand spelling replaced,
+        and every "unknown" guest or host label named.
+    """
+    corrected = "".join(_correct_line(line, fix) for line in text.splitlines(keepends=True))
+    return _replace_unknown_labels(corrected, fix)

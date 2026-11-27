@@ -12,6 +12,7 @@ from pathlib import Path
 import yaml
 
 from podscribe.models import EpisodeNote, EpisodeRef
+from podscribe.names import NameFix
 
 UNSAFE_CHARS = re.compile(r'[:\[\]#^|\\*"<>?]')
 WHITESPACE = re.compile(r"\s+")
@@ -157,13 +158,21 @@ def _strip_analyzer_headers(text: str) -> str:
     return "".join(line for line in lines if not line.startswith(("CATEGORY:", "FILENAME:")))
 
 
+def _missing_title(value: object) -> bool:
+    """Return whether an analyzer title is absent or says it had no episode title."""
+    if not isinstance(value, str) or not value.strip():
+        return True
+    text = value.strip()
+    return text.lower().startswith("unknown") or "{{" in text
+
+
 def _split_leading_frontmatter(text: str) -> tuple[dict[str, object], str]:
     """Return a leading YAML block and the body after it.
 
     Analyzers may emit their own ``---`` block (the Podcast mode does: title,
     guest, host, topics). The note already has frontmatter, so the block is
-    promoted into it and removed from the body. Text without a valid block is
-    returned unchanged.
+    promoted into it and removed from the body. A leading block that is not
+    valid YAML is dropped from the body rather than leaked into the note.
     """
     lines = text.splitlines(keepends=True)
     if not lines or lines[0].strip() != FRONTMATTER_FENCE:
@@ -174,7 +183,7 @@ def _split_leading_frontmatter(text: str) -> tuple[dict[str, object], str]:
         try:
             data = yaml.safe_load("".join(lines[1:index]))
         except yaml.YAMLError:
-            return {}, text
+            return {}, "".join(lines[index + 1 :])
         if isinstance(data, dict):
             return data, "".join(lines[index + 1 :])
         return {}, text
@@ -188,6 +197,7 @@ def render_analysis_note(
     analysis: str,
     analyzed_at: datetime | None,
     episode_note: str,
+    names: NameFix | None = None,
 ) -> str:
     """Render one analysis note as Markdown: frontmatter and analyzer output.
 
@@ -197,6 +207,7 @@ def render_analysis_note(
         analysis: The analyzer's Markdown, header lines stripped.
         analyzed_at: When the analysis was produced, None when unknown.
         episode_note: File name of the episode note to link back to.
+        names: Canonical guest and host; they win over the analyzer's block.
 
     Returns:
         The complete Markdown document, ending in a newline.
@@ -214,10 +225,12 @@ def render_analysis_note(
         f"analyzed_at: {analyzed}",
     ]
     title = metadata.get("title")
+    if names is not None and _missing_title(title):
+        title = ref.episode_title
     if isinstance(title, str) and title.strip():
         lines.append(f"analyzer_title: {_yaml_string(title.strip())}")
-    for field in ("guest", "host"):
-        value = metadata.get(field)
+    for field, canonical in (("guest", names and names.guest), ("host", names and names.host)):
+        value = canonical or metadata.get(field)
         if isinstance(value, str) and value.strip():
             lines.append(f"{field}: {_yaml_string(value.strip())}")
     topics = metadata.get("topics")

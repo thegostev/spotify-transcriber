@@ -42,6 +42,13 @@ def _normalized(title: str) -> str:
     return " ".join(title.split()).casefold()
 
 
+def _author(root: ET.Element, item: ET.Element) -> str:
+    """Return the channel's ``itunes:author``, falling back to the item's."""
+    channel = root.find("channel")
+    channel_author = _text(channel, "author") if channel is not None else ""
+    return channel_author or _text(item, "author")
+
+
 def match_feed_item(feed_xml: str, ref: EpisodeRef, *, tolerance_days: int = DEFAULT_TOLERANCE_DAYS) -> FeedItem | None:
     """Return the feed item that matches ``ref``.
 
@@ -53,9 +60,10 @@ def match_feed_item(feed_xml: str, ref: EpisodeRef, *, tolerance_days: int = DEF
     Returns:
         The matching item, or ``None`` when the episode is unmatched.
     """
+    root = ET.fromstring(feed_xml)
     wanted = _normalized(ref.episode_title)
     best: tuple[int, ET.Element, date, str] | None = None
-    for item in (node for node in ET.fromstring(feed_xml).iter() if node.tag.rsplit("}", 1)[-1] == "item"):
+    for item in (node for node in root.iter() if node.tag.rsplit("}", 1)[-1] == "item"):
         if _normalized(_text(item, "title")) != wanted:
             continue
         published = _published(item)
@@ -76,4 +84,5 @@ def match_feed_item(feed_xml: str, ref: EpisodeRef, *, tolerance_days: int = DEF
         duration_seconds=_duration(item),
         show_notes=_text(item, "description"),
         guid=_text(item, "guid") or None,
+        author=_author(root, item),
     )

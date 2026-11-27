@@ -223,3 +223,19 @@ def test_load_config_rejects_a_non_list_command_argv(tmp_path):
 
     with pytest.raises(ConfigError, match="analyzer.command.argv"):
         load_config(write_config(tmp_path, text))
+
+
+def test_load_config_defaults_the_analysis_section_to_empty(tmp_path):
+    from podscribe.config import load_config
+
+    assert load_config(write_config(tmp_path)).analysis == {}
+
+
+def test_load_config_exposes_the_analysis_name_rules(tmp_path):
+    from podscribe.config import load_config
+
+    text = BASE_CONFIG + "analysis:\n  names:\n    aliases:\n      Grzemski: Wyszynski\n"
+
+    config = load_config(write_config(tmp_path, text))
+
+    assert config.analysis["names"]["aliases"] == {"Grzemski": "Wyszynski"}

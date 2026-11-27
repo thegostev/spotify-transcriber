@@ -139,3 +139,97 @@ def test_render_analysis_note_promotes_the_analyzer_metadata_block():
     assert 'topics: ["mcp", "ai-agents"]' in text
     assert text.count("---") == 2
     assert text.endswith("## TL;DR\n- One idea.\n")
+
+
+def test_render_analysis_note_prefers_the_canonical_names():
+    from podscribe.names import NameFix
+    from podscribe.note import render_analysis_note
+
+    analysis = (
+        "---\n"
+        'guest: "Marcin Grzemski"\n'
+        'host: "unknown"\n'
+        "topics: [terraform]\n"
+        "---\n"
+        "\n## TL;DR\n- One idea.\n"
+    )
+
+    text = render_analysis_note(
+        ref=ref(),
+        analyzer="superwhisper",
+        analysis=analysis,
+        analyzed_at=None,
+        episode_note="26-11-18 An Episode.md",
+        names=NameFix(guest="Marcin Wyszynski", host="Lee Atchison"),
+    )
+
+    assert 'guest: "Marcin Wyszynski"' in text
+    assert 'host: "Lee Atchison"' in text
+    assert "Grzemski" not in text
+    assert 'topics: ["terraform"]' in text
+
+
+def test_render_analysis_note_replaces_an_unknown_analyzer_title():
+    from podscribe.names import NameFix
+    from podscribe.note import render_analysis_note
+
+    analysis = "---\ntitle: \"unknown (episode title not provided)\"\n---\n\n## TL;DR\n- One idea.\n"
+
+    text = render_analysis_note(
+        ref=ref(),
+        analyzer="superwhisper",
+        analysis=analysis,
+        analyzed_at=None,
+        episode_note="26-11-18 An Episode.md",
+        names=NameFix(),
+    )
+
+    assert 'analyzer_title: "An Episode"' in text
+    assert "episode title not provided" not in text
+
+
+def test_render_analysis_note_drops_a_malformed_analyzer_block():
+    from podscribe.names import NameFix
+    from podscribe.note import render_analysis_note
+
+    analysis = (
+        "---\n"
+        'title: "{{EPISODE_TITLE}}"\n'
+        'guest: "Marcin Wyszynski (spelled "Grzemski" in the transcript)"\n'
+        "---\n"
+        "\n## TL;DR\n- One idea.\n"
+    )
+
+    text = render_analysis_note(
+        ref=ref(),
+        analyzer="superwhisper",
+        analysis=analysis,
+        analyzed_at=None,
+        episode_note="26-11-18 An Episode.md",
+        names=NameFix(guest="Marcin Wyszynski", host="Lee Atchison"),
+    )
+    _, body = split_frontmatter(text)
+
+    assert body.strip() == "## TL;DR\n- One idea."
+    assert text.count("guest: ") == 1
+    assert "{{EPISODE_TITLE}}" not in text
+    assert 'analyzer_title: "An Episode"' in text
+
+
+def test_render_analysis_note_replaces_a_placeholder_title():
+    from podscribe.names import NameFix
+    from podscribe.note import render_analysis_note
+
+    analysis = '---\ntitle: "{{EPISODE_TITLE}}"\n---\n\n## TL;DR\n- One idea.\n'
+
+    text = render_analysis_note(
+        ref=ref(),
+        analyzer="superwhisper",
+        analysis=analysis,
+        analyzed_at=None,
+        episode_note="26-11-18 An Episode.md",
+        names=NameFix(),
+    )
+
+    assert 'analyzer_title: "An Episode"' in text
+    assert "{{EPISODE_TITLE}}" not in text

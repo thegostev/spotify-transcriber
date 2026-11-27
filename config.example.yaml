@@ -78,3 +78,10 @@ remote:                                    # used on the laptop by the shim
   cwd: "~/Documents/Obsidian/Utvikling/1 - Code/SpotifyTranscriber/spotify-transcriber"
   command: "uv run python -m podscribe"    # what runs on the far side, before add/status
   config: "../bootstrap/config.yaml"       # appended as --config after add/status
+
+analysis:                                  # OPTIONAL - fixes the analyzer's spellings in the note
+  names:
+    guest: ""                              # override; default is the guest in the episode title
+    host: ""                               # override; default is the feed's channel itunes:author
+    brand: ""                              # override; default is the brand after "with <guest>, "
+    aliases: {}                            # wrong -> right, e.g. {Grzemski: Wyszynski, SpaceLift: Spacelift}

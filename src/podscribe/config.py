@@ -6,14 +6,14 @@ are not values here: llm.api_key carries Keychain references only.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-SECTIONS = ("paths", "intake", "analyzer", "speech", "llm", "notifications", "remote")
-OPTIONAL_SECTIONS = ("speech", "llm")
+SECTIONS = ("paths", "intake", "analyzer", "speech", "llm", "notifications", "remote", "analysis")
+OPTIONAL_SECTIONS = ("speech", "llm", "analysis")
 
 REQUIRED_KEYS: dict[str, tuple[str, ...]] = {
     "paths": ("output_dir", "failure_notes_dir", "data_dir", "log_file"),
@@ -45,6 +45,7 @@ class Config:
         analyzer: Backend selection and its per-backend settings.
         speech: Legacy speech plans; optional, ``{}`` when absent.
         llm: Legacy Ollama Cloud passes; optional, ``{}`` when absent.
+        analysis: Optional name-correction rules for the analysis note.
         source: The file the config was read from.
     """
 
@@ -56,6 +57,7 @@ class Config:
     notifications: dict[str, Any]
     remote: dict[str, Any]
     source: Path
+    analysis: dict[str, Any] = field(default_factory=dict)
 
 
 def _validate_analyzer(analyzer: dict[str, Any], source: Path) -> None:
