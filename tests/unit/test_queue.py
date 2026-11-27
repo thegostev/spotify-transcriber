@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-import pytest
-
 URL = "https://open.spotify.com/episode/abc123"
 TRACKED_URLS = (
     "https://open.spotify.com/episode/abc123?si=e72ca56168534d0c",
@@ -122,7 +120,6 @@ def test_enqueue_keeps_a_different_episode_as_a_second_job(config_factory):
     ]
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1061")
 def test_enqueue_recognises_a_stored_link_with_a_tracking_parameter(config_factory):
     import sqlite3
 
