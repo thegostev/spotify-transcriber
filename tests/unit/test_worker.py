@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import pytest
-
 from podscribe.analyzer import AnalyzerResult
 from podscribe.models import EpisodeRef, Segment, Transcript
 
@@ -230,7 +228,6 @@ def test_run_jobs_records_an_analyzer_error_from_the_pipeline(config_factory):
     assert f"failed {URL}: analyzer boom" in lines
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1128")
 def test_run_jobs_requeues_a_stale_running_job_before_it_polls(config_factory):
     from podscribe.queue import claim_next, enqueue, list_jobs
     from podscribe.worker import run_jobs

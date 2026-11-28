@@ -12,7 +12,7 @@ from podscribe.analyzer import Analyzer
 from podscribe.cli import add_episode
 from podscribe.config import Config
 from podscribe.http import HttpClientLike
-from podscribe.queue import DONE, FAILED, UNMATCHED, Job, Store, claim_next, finish
+from podscribe.queue import DONE, FAILED, UNMATCHED, Job, Store, claim_next, finish, requeue_stale
 
 POLL_SECONDS = 60.0
 LOG_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -80,6 +80,8 @@ def run_jobs(
     Returns:
         The jobs processed in this call, in claim order.
     """
+    for stale in requeue_stale(store, now=now()):
+        log(f"requeued {stale.episode_url} after a stale run")
     processed: list[Job] = []
     while True:
         job = claim_next(store, now=now())

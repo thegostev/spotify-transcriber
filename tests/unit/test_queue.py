@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-
-import pytest
 
 URL = "https://open.spotify.com/episode/abc123"
 TRACKED_URLS = (
@@ -174,7 +172,6 @@ def test_finish_records_the_final_state_and_time(config_factory):
     assert list_jobs(store)[0] == finished
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1128")
 def test_requeue_stale_returns_an_old_running_job_to_the_queue(config_factory):
     from podscribe.queue import claim_next, enqueue, open_store, requeue_stale
 
@@ -191,7 +188,6 @@ def test_requeue_stale_returns_an_old_running_job_to_the_queue(config_factory):
     assert claim_next(store, now=datetime(2026, 11, 20, 12, 1, 0)) is not None
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1128")
 def test_requeue_stale_leaves_a_fresh_running_job_alone(config_factory):
     from podscribe.queue import claim_next, enqueue, list_jobs, open_store, requeue_stale
 
@@ -203,7 +199,6 @@ def test_requeue_stale_leaves_a_fresh_running_job_alone(config_factory):
     assert list_jobs(store)[0].state == "running"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1128")
 def test_requeue_stale_treats_a_missing_start_time_as_stale(config_factory):
     import sqlite3
 
