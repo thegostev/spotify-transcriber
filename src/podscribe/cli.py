@@ -28,7 +28,7 @@ from podscribe.itunes import find_feed
 from podscribe.models import EpisodeNote, EpisodeRef
 from podscribe.names import correct_analysis, derive_names
 from podscribe.note import NoteExistsError, note_names, render_analysis_note, render_episode_note
-from podscribe.owner import owner_job, owner_path
+from podscribe.owner import clear_owner, owner_job, owner_path, write_owner
 from podscribe.queue import DONE, QUEUED, RUNNING, Job, enqueue, list_jobs, open_store
 from podscribe.remote import RemoteError, load_remote_config, read_status, remote_line, run_subprocess, send_add
 
@@ -143,6 +143,7 @@ def add_episode(
     dry_run: bool = False,
     now: datetime | None = None,
     notifier: Notifier | None = None,
+    job_id: int | None = None,
 ) -> AddOutcome:
     """Resolve one episode link and write its notes.
 
@@ -156,6 +157,7 @@ def add_episode(
         dry_run: Resolve and report without downloading or writing.
         now: Time written as ``analyzed_at``; defaults to the current time.
         notifier: Failure notifier; ``osascript`` when None.
+        job_id: Queue row being analyzed; when set, an owner file names it.
 
     Returns:
         The outcome, with the note paths that were planned or written.
@@ -214,6 +216,9 @@ def add_episode(
             notifier=notify,
             detail=str(exc),
         )
+    marker = owner_path(config.paths["data_dir"]) if job_id is not None else None
+    if marker is not None:
+        write_owner(marker, job_id, now=now)
     try:
         result = analyzer.analyze(audio, ref)
     except Exception as exc:
@@ -229,6 +234,9 @@ def add_episode(
             notifier=notify,
             detail=str(exc),
         )
+    finally:
+        if marker is not None:
+            clear_owner(marker)
     has_analysis = bool(result.analysis)
     canonical = derive_names(
         ref.episode_title, item.author, config.analysis.get("names"), show=ref.show
