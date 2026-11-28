@@ -38,7 +38,10 @@ def process_job(
     """Run one claimed job through the add pipeline and record the result."""
     log(f"start {job.episode_url}")
     try:
-        outcome = add_episode(job.episode_url, config, client=client, analyzer=analyzer, dry_run=False, now=now)
+        outcome = add_episode(
+            job.episode_url, config, client=client, analyzer=analyzer,
+            dry_run=False, now=now, job_id=job.id,
+        )
     except Exception as exc:
         log(f"failed {job.episode_url}: {exc}")
         for line in traceback.format_exc().strip().splitlines()[-TRACEBACK_TAIL_LINES:]:

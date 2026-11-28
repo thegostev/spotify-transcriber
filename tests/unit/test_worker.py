@@ -228,6 +228,36 @@ def test_run_jobs_records_an_analyzer_error_from_the_pipeline(config_factory):
     assert f"failed {URL}: analyzer boom" in lines
 
 
+def test_run_jobs_marks_the_owner_around_the_analyzer(config_factory):
+    from podscribe.owner import owner_job, owner_path
+    from podscribe.queue import enqueue
+    from podscribe.worker import run_jobs
+
+    config = config_factory()
+    store = store_for(config)
+    enqueue(store, URL)
+    marker = owner_path(config.paths["data_dir"])
+    seen: list[int | None] = []
+
+    class OwnerCheckingAnalyzer(FakeAnalyzer):
+        def analyze(self, audio, ref):
+            seen.append(owner_job(marker))
+            return super().analyze(audio, ref)
+
+    run_jobs(
+        config,
+        store=store,
+        client=FakeClient(),
+        analyzer=OwnerCheckingAnalyzer(),
+        log=lambda line: None,
+        once=True,
+        now=lambda: FIXED_NOW,
+    )
+
+    assert seen == [1]
+    assert not marker.exists()
+
+
 def test_run_jobs_requeues_a_stale_running_job_before_it_polls(config_factory):
     from podscribe.queue import claim_next, enqueue, list_jobs
     from podscribe.worker import run_jobs
