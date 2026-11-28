@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from podscribe.links import canonical_episode_url
@@ -15,6 +15,8 @@ RUNNING = "running"
 DONE = "done"
 UNMATCHED = "unmatched"
 FAILED = "failed"
+STALE_RUN = timedelta(hours=6)
+STALE_REASON = "requeued after a stale run"
 
 _DUPLICATE_STATUS = {DONE: "already_done", QUEUED: "already_queued", RUNNING: "already_running"}
 
@@ -76,6 +78,14 @@ def _connect(store: Store) -> sqlite3.Connection:
     connection.execute("PRAGMA busy_timeout = 5000")
     connection.execute(_SCHEMA)
     return connection
+
+
+def _started(stamp: str | None) -> datetime | None:
+    """Return the parseable start time of a job, None when absent or bad."""
+    try:
+        return datetime.fromisoformat(stamp) if stamp else None
+    except ValueError:
+        return None
 
 
 def _timestamp(now: datetime | None) -> str:
@@ -230,5 +240,48 @@ def finish(
             (state, str(note_path) if note_path else None, reason, _timestamp(now), job.id),
         )
         return _job(connection.execute("SELECT * FROM jobs WHERE id = ?", (job.id,)).fetchone())
+    finally:
+        connection.close()
+
+
+def requeue_stale(
+    store: Store, *, older_than: timedelta = STALE_RUN, now: datetime | None = None
+) -> list[Job]:
+    """Return running jobs older than ``older_than`` to the queue.
+
+    A worker killed mid-episode leaves its row running forever, so the episode
+    can never be claimed again. The worker calls this once at startup; a row
+    with no readable start time counts as stale.
+
+    Args:
+        store: The queue database.
+        older_than: How long a run may last before it is assumed dead.
+        now: Current time; defaults to the current time.
+
+    Returns:
+        The jobs that were requeued, oldest first.
+    """
+    cutoff = (now or datetime.now()) - older_than
+    connection = _connect(store)
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        rows = connection.execute(
+            "SELECT * FROM jobs WHERE state = ? ORDER BY id", (RUNNING,)
+        ).fetchall()
+        reclaimed = []
+        for row in rows:
+            started = _started(row["started_at"])
+            if started is not None and started > cutoff:
+                continue
+            connection.execute(
+                "UPDATE jobs SET state = ?, reason = ?, started_at = NULL, finished_at = NULL WHERE id = ?",
+                (QUEUED, STALE_REASON, row["id"]),
+            )
+            reclaimed.append(_job(connection.execute("SELECT * FROM jobs WHERE id = ?", (row["id"],)).fetchone()))
+        connection.execute("COMMIT")
+        return reclaimed
+    except BaseException:
+        connection.execute("ROLLBACK")
+        raise
     finally:
         connection.close()
