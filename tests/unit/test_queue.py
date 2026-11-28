@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
+
+import pytest
 
 URL = "https://open.spotify.com/episode/abc123"
 TRACKED_URLS = (
@@ -170,3 +172,51 @@ def test_finish_records_the_final_state_and_time(config_factory):
     assert finished.reason == "unmatched episode: Another"
     assert finished.finished_at == "2026-11-20T12:09:00"
     assert list_jobs(store)[0] == finished
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1128")
+def test_requeue_stale_returns_an_old_running_job_to_the_queue(config_factory):
+    from podscribe.queue import claim_next, enqueue, open_store, requeue_stale
+
+    store = open_store(config_factory().paths["data_dir"])
+    enqueue(store, URL)
+    claim_next(store, now=datetime(2026, 11, 20, 5, 0, 0))
+
+    requeued = requeue_stale(store, now=datetime(2026, 11, 20, 12, 0, 0))
+
+    assert [job.id for job in requeued] == [1]
+    assert requeued[0].state == "queued"
+    assert requeued[0].started_at is None
+    assert requeued[0].reason == "requeued after a stale run"
+    assert claim_next(store, now=datetime(2026, 11, 20, 12, 1, 0)) is not None
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1128")
+def test_requeue_stale_leaves_a_fresh_running_job_alone(config_factory):
+    from podscribe.queue import claim_next, enqueue, list_jobs, open_store, requeue_stale
+
+    store = open_store(config_factory().paths["data_dir"])
+    enqueue(store, URL)
+    claim_next(store, now=datetime(2026, 11, 20, 11, 0, 0))
+
+    assert requeue_stale(store, now=datetime(2026, 11, 20, 12, 0, 0)) == []
+    assert list_jobs(store)[0].state == "running"
+
+
+@pytest.mark.xfail(strict=True, reason="LAG-1128")
+def test_requeue_stale_treats_a_missing_start_time_as_stale(config_factory):
+    import sqlite3
+
+    from podscribe.queue import list_jobs, open_store, requeue_stale
+
+    store = open_store(config_factory().paths["data_dir"])
+    list_jobs(store)
+    with sqlite3.connect(store.path) as connection:
+        connection.execute(
+            "INSERT INTO jobs (episode_url, state, created_at) VALUES (?, ?, ?)",
+            (URL, "running", "2026-11-20T12:00:00"),
+        )
+
+    requeued = requeue_stale(store, now=datetime(2026, 11, 20, 12, 1, 0))
+
+    assert [job.state for job in requeued] == ["queued"]
