@@ -6,6 +6,14 @@ from datetime import datetime
 from pathlib import Path
 
 URL = "https://open.spotify.com/episode/abc123"
+TRACKED_URLS = (
+    "https://open.spotify.com/episode/abc123?si=e72ca56168534d0c",
+    "https://open.spotify.com/episode/abc123?si=6fa542732dbd4e83",
+    "https://open.spotify.com/episode/abc123?utm_source=copy-link",
+    "https://open.spotify.com/episode/abc123#t=0",
+    "https://open.spotify.com/episode/abc123/",
+    "https://Open.Spotify.com/episode/abc123",
+)
 
 
 def test_open_store_places_the_database_in_the_data_dir(tmp_path, config_factory):
@@ -82,6 +90,53 @@ def test_enqueue_retries_a_failed_link(config_factory):
     assert result.job.reason is None
     assert result.job.started_at is None
     assert result.job.finished_at is None
+
+
+def test_enqueue_collapses_a_tracked_episode_link_to_one_job(config_factory):
+    from podscribe.queue import enqueue, list_jobs, open_store
+
+    store = open_store(config_factory().paths["data_dir"])
+    first = enqueue(store, TRACKED_URLS[0])
+
+    statuses = [enqueue(store, url).status for url in TRACKED_URLS[1:]]
+
+    assert first.status == "new"
+    assert statuses == ["already_queued"] * (len(TRACKED_URLS) - 1)
+    assert [job.episode_url for job in list_jobs(store)] == [URL]
+
+
+def test_enqueue_keeps_a_different_episode_as_a_second_job(config_factory):
+    from podscribe.queue import enqueue, list_jobs, open_store
+
+    store = open_store(config_factory().paths["data_dir"])
+    enqueue(store, TRACKED_URLS[0])
+
+    other = enqueue(store, "https://open.spotify.com/episode/def456?si=abc")
+
+    assert other.status == "new"
+    assert [job.episode_url for job in list_jobs(store)] == [
+        "https://open.spotify.com/episode/def456",
+        URL,
+    ]
+
+
+def test_enqueue_recognises_a_stored_link_with_a_tracking_parameter(config_factory):
+    import sqlite3
+
+    from podscribe.queue import enqueue, list_jobs, open_store
+
+    store = open_store(config_factory().paths["data_dir"])
+    list_jobs(store)
+    with sqlite3.connect(store.path) as connection:
+        connection.execute(
+            "INSERT INTO jobs (episode_url, state, created_at) VALUES (?, ?, ?)",
+            ("https://open.spotify.com/episode/abc123?si=e72ca56168534d0c", "done", "2026-11-21T08:08:00"),
+        )
+
+    result = enqueue(store, URL)
+
+    assert result.status == "already_done"
+    assert result.job.episode_url == URL
 
 
 def test_claim_next_marks_the_oldest_job_running(config_factory):

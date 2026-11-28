@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from podscribe.links import canonical_episode_url
+
 QUEUE_FILENAME = "queue.db"
 QUEUED = "queued"
 RUNNING = "running"
@@ -91,26 +93,45 @@ def _job(row: sqlite3.Row) -> Job:
     return Job(**dict(row))
 
 
+def _find_job(connection: sqlite3.Connection, canonical: str) -> sqlite3.Row | None:
+    """Return the job for an episode, matching a stored link that has tracking.
+
+    Older rows kept the link as submitted, so a row carrying ``?si=`` would
+    otherwise look like a new episode. A matched row is rewritten to the
+    canonical form.
+    """
+    row = connection.execute("SELECT * FROM jobs WHERE episode_url = ?", (canonical,)).fetchone()
+    if row is not None:
+        return row
+    for candidate in connection.execute("SELECT id, episode_url FROM jobs ORDER BY id"):
+        if canonical_episode_url(candidate["episode_url"]) != canonical:
+            continue
+        connection.execute("UPDATE jobs SET episode_url = ? WHERE id = ?", (canonical, candidate["id"]))
+        return connection.execute("SELECT * FROM jobs WHERE id = ?", (candidate["id"],)).fetchone()
+    return None
+
+
 def enqueue(store: Store, url: str, *, now: datetime | None = None) -> EnqueueResult:
     """Add one episode link to the queue.
 
     Args:
         store: The queue database.
-        url: Spotify episode link; unique in the queue.
+        url: Episode link; its canonical form is unique in the queue.
         now: Creation time; defaults to the current time.
 
     Returns:
         ``new`` or ``retry`` with a queued job, or ``already_done``,
         ``already_queued`` or ``already_running`` with the existing job.
     """
+    canonical = canonical_episode_url(url)
     connection = _connect(store)
     try:
         connection.execute("BEGIN IMMEDIATE")
-        row = connection.execute("SELECT * FROM jobs WHERE episode_url = ?", (url,)).fetchone()
+        row = _find_job(connection, canonical)
         if row is None:
             cursor = connection.execute(
                 "INSERT INTO jobs (episode_url, state, created_at) VALUES (?, ?, ?)",
-                (url, QUEUED, _timestamp(now)),
+                (canonical, QUEUED, _timestamp(now)),
             )
             row = connection.execute("SELECT * FROM jobs WHERE id = ?", (cursor.lastrowid,)).fetchone()
             status = "new"
