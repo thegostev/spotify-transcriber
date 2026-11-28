@@ -5,8 +5,6 @@ from __future__ import annotations
 import fcntl
 from datetime import datetime
 
-import pytest
-
 from podscribe.queue import Job
 
 URL = "https://open.spotify.com/episode/abc123"
@@ -82,7 +80,6 @@ def test_main_status_prints_the_queue_without_building_the_analyzer(config_facto
     assert capsys.readouterr().out == f"queued  {URL}  (added 12:01)\n"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1062")
 def test_format_status_says_analyzing_when_podscribe_holds_the_lock():
     from podscribe.cli import format_status
 
@@ -93,7 +90,6 @@ def test_format_status_says_analyzing_when_podscribe_holds_the_lock():
     ]
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1062")
 def test_main_status_names_the_running_job_that_holds_the_lock(config_factory, capsys, monkeypatch):
     import os
 
@@ -114,7 +110,6 @@ def test_main_status_names_the_running_job_that_holds_the_lock(config_factory, c
     assert capsys.readouterr().out == f"running  {URL}  (started 12:05)  analyzing\n"
 
 
-@pytest.mark.xfail(strict=True, reason="LAG-1062")
 def test_main_status_still_waits_when_the_owner_file_is_stale(config_factory, capsys, monkeypatch):
     import podscribe.cli as cli
     from podscribe.owner import owner_path, write_owner
